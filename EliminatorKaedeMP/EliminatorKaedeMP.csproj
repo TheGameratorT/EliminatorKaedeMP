@@ -24,23 +24,8 @@
     <Reference Include="Assembly-CSharp">
       <HintPath>Libraries\Assembly-CSharp.dll</HintPath>
     </Reference>
-    <Reference Include="netstandard">
-      <HintPath>Libraries\netstandard.dll</HintPath>
-    </Reference>
-    <Reference Include="Photon3Unity3D">
-      <HintPath>Libraries\Photon3Unity3D.dll</HintPath>
-    </Reference>
-    <Reference Include="PhotonChat">
-      <HintPath>Libraries\PhotonChat.dll</HintPath>
-    </Reference>
-    <Reference Include="PhotonRealtime">
-      <HintPath>Libraries\PhotonRealtime.dll</HintPath>
-    </Reference>
-    <Reference Include="PhotonUnityNetworking">
-      <HintPath>Libraries\PhotonUnityNetworking.dll</HintPath>
-    </Reference>
-    <Reference Include="PhotonUnityNetworking.Utilities">
-      <HintPath>Libraries\PhotonUnityNetworking.Utilities.dll</HintPath>
+    <Reference Include="Assembly-CSharp-firstpass">
+      <HintPath>Libraries\Assembly-CSharp-firstpass.dll</HintPath>
     </Reference>
   </ItemGroup>
 </Project>

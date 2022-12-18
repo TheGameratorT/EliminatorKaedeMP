@@ -58,11 +58,5 @@ namespace EliminatorKaedeMP
             int sceneID = SceneManager.GetActiveScene().buildIndex;
             return sceneID == SceneID.Dam || sceneID == SceneID.DebugStage;
         }
-
-        // Gets the local player controller, null if not in game
-        public static PlayerControl GetLocalPlayer()
-        {
-            return PlayerPref.instance?.PlayerIncetance?.GetComponent<PlayerControl>();
-        }
     }
 }

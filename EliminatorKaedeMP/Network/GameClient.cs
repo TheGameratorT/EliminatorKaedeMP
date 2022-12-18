@@ -86,12 +86,12 @@ namespace EliminatorKaedeMP
                             mpPlayer.Name = playerInfo.Name;
                             if (playerInfo.ID == playerID) // If this is our player instance
                             {
-                                mpPlayer.PlayerCtrl = Utils.GetLocalPlayer();
+                                mpPlayer.PlayerCtrl = PlayerExtensions.GetLocalPlayer();
 			    	            GameNet.Player = mpPlayer;
                             }
                             else
                             {
-                                mpPlayer.PlayerCtrl = GameNet.TryInstantiatePlayer();
+                                mpPlayer.PlayerCtrl = PlayerExtensions.TryInstantiatePlayer(mpPlayer);
                             }
                             GameNet.Players.Add(mpPlayer);
                         }
@@ -102,7 +102,7 @@ namespace EliminatorKaedeMP
                 {
                     EKMPPlayer mpPlayer = new EKMPPlayer();
                     mpPlayer.Client = null;
-                    mpPlayer.PlayerCtrl = GameNet.TryInstantiatePlayer();
+                    mpPlayer.PlayerCtrl = PlayerExtensions.TryInstantiatePlayer(mpPlayer);
                     mpPlayer.ID = reader.ReadUInt32();
                     mpPlayer.Name = reader.ReadString();
                     Plugin.CallOnMainThread(() => mpPlayer.OnJoin());

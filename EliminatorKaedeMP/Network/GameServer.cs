@@ -55,7 +55,7 @@ namespace EliminatorKaedeMP
 
             EKMPPlayer mpPlayer = new EKMPPlayer();
             mpPlayer.Client = netClient;
-            mpPlayer.PlayerCtrl = GameNet.TryInstantiatePlayer();
+            mpPlayer.PlayerCtrl = PlayerExtensions.TryInstantiatePlayer(mpPlayer);
             mpPlayer.Name = reader.ReadString();
             mpPlayer.ID = nextPlayerID;
 
@@ -75,7 +75,7 @@ namespace EliminatorKaedeMP
         {
             EKMPPlayer mpPlayer = new EKMPPlayer();
             mpPlayer.Client = null;
-            mpPlayer.PlayerCtrl = Utils.GetLocalPlayer();
+            mpPlayer.PlayerCtrl = PlayerExtensions.GetLocalPlayer();
             mpPlayer.Name = GameNet.PlayerName;
             mpPlayer.ID = nextPlayerID;
             nextPlayerID++;

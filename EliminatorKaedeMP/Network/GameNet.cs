@@ -1,6 +1,4 @@
-﻿using K_PlayerControl;
-using System.Collections.Generic;
-using UnityEngine;
+﻿using System.Collections.Generic;
 
 namespace EliminatorKaedeMP
 {
@@ -57,16 +55,14 @@ namespace EliminatorKaedeMP
             return IsServer || IsConnected;
         }
 
-        // Tries to create a player if in game
-        public static PlayerControl TryInstantiatePlayer()
+        public static void OnGameStart()
         {
-            if (!Utils.IsInGame())
-                return null;
-            PlayerControl player = Utils.GetLocalPlayer();
-            if (player == null)
-                return null;
-            PlayerControl newPlayer = Object.Instantiate(player.gameObject).GetComponent<PlayerControl>();
-            return newPlayer;
+            if (!IsNetGame())
+                return;
+            foreach (EKMPPlayer player in Players)
+                player.PlayerCtrl = (player.ID == Player.ID) ?
+                    PlayerExtensions.GetLocalPlayer() :
+                    PlayerExtensions.TryInstantiatePlayer(player);
         }
     }
 }
