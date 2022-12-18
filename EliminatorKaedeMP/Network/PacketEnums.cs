@@ -1,6 +1,6 @@
 ﻿namespace EliminatorKaedeMP
 {
-    public enum S2CPacket
+    public enum S2CPacketID
     {
         GameJoinInfo,
         PlayerJoin,

@@ -1,5 +1,6 @@
 ﻿using K_PlayerControl;
 using System.Collections.Generic;
+using UnityEngine;
 
 namespace EliminatorKaedeMP
 {
@@ -7,7 +8,7 @@ namespace EliminatorKaedeMP
     public class EKMPPlayer
     {
         public NetClient Client = null;
-        public PlayerControl Player = null;
+        public PlayerControl PlayerCtrl = null;
         public string Name;
         public uint ID;
 
@@ -20,6 +21,8 @@ namespace EliminatorKaedeMP
         public void OnJoin()
         {
             GameNet.Players.Add(this);
+
+            Plugin.Log(Name + " has joined!");
             
             if (GameNet.IsServer)
             {
@@ -36,18 +39,22 @@ namespace EliminatorKaedeMP
                     playerInfo.Name = mpPlayer.Name;
                     joinData.PlayerInfos.Add(playerInfo);
                 }
-                Client.SendPacket(Utils.SerializePacket(S2CPacket.GameJoinInfo, joinData));
+                Client.SendPacket(Utils.SerializePacket(S2CPacketID.GameJoinInfo, joinData));
             }
         }
 
-        public void OnDisconnected()
+        public void OnDisconnect()
         {
             GameNet.Players.Remove(this);
+            if (PlayerCtrl != null)
+                Object.Destroy(PlayerCtrl.gameObject);
+
+            Plugin.Log(Name + " has left!");
 
             if (GameNet.IsServer)
             {
                 byte[] bytes = new byte[8];
-                Utils.WriteInt(bytes, 0, (int) S2CPacket.PlayerLeave);
+                Utils.WriteInt(bytes, 0, (int) S2CPacketID.PlayerLeave);
                 Utils.WriteInt(bytes, 4, (int) ID);
                 GameNet.Server.BroadcastPacket(bytes);
             }

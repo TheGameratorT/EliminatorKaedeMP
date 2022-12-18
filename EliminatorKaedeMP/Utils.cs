@@ -1,9 +1,11 @@
-﻿using System;
+﻿using K_PlayerControl;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
+using UnityEngine.SceneManagement;
 
 namespace EliminatorKaedeMP
 {
@@ -26,7 +28,7 @@ namespace EliminatorKaedeMP
             bytes[3 + offset] = (byte) (value >> 24);
         }
 
-        public static byte[] SerializePacket(S2CPacket packetID, object obj)
+        public static byte[] SerializePacket(S2CPacketID packetID, object obj)
         {
             byte[] result;
 
@@ -50,9 +52,17 @@ namespace EliminatorKaedeMP
             return formatter.Deserialize(stream);
         }
 
-		public static void IsInGame()
+        // Returns true if the player is in Dam or Mission scene
+		public static bool IsInGame()
         {
+            int sceneID = SceneManager.GetActiveScene().buildIndex;
+            return sceneID == SceneID.Dam || sceneID == SceneID.DebugStage;
+        }
 
+        // Gets the local player controller, null if not in game
+        public static PlayerControl GetLocalPlayer()
+        {
+            return PlayerPref.instance?.PlayerIncetance?.GetComponent<PlayerControl>();
         }
     }
 }

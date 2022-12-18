@@ -29,6 +29,14 @@ namespace EliminatorKaedeMP
         private void OnDisconnected(NetClient netClient)
         {
             GameNet.IsConnected = false;
+            foreach (EKMPPlayer player in GameNet.Players)
+            {
+                if (player.ID != GameNet.Player.ID)
+                {
+                    if (player.PlayerCtrl != null)
+                        UnityEngine.Object.Destroy(player.PlayerCtrl.gameObject);
+                }
+            }
             GameNet.Player = null;
             GameNet.Players.Clear();
             Plugin.Log("Disconnected from the server.");
@@ -43,7 +51,7 @@ namespace EliminatorKaedeMP
                 return;
             }
 
-            Plugin.Log("Handshake valid, sending username...");
+            Plugin.Log("Got valid server handshake confirmation, proceeding...");
             
             using MemoryStream stream = new MemoryStream();
             using BinaryWriter writer = new BinaryWriter(stream);
@@ -60,10 +68,10 @@ namespace EliminatorKaedeMP
                 using MemoryStream stream = new MemoryStream(bytes);
                 using BinaryReader reader = new BinaryReader(stream);
 
-                S2CPacket packetID = (S2CPacket) reader.Read();
+                S2CPacketID packetID = (S2CPacketID) reader.Read();
                 switch (packetID)
                 {
-                case S2CPacket.GameJoinInfo:
+                case S2CPacketID.GameJoinInfo:
                 {
                     // Receive all information about the game
                     GameJoinInfoData joinInfo = (GameJoinInfoData) Utils.DeserializePacket(stream);
@@ -73,40 +81,46 @@ namespace EliminatorKaedeMP
                         foreach (PlayerInfoData playerInfo in joinInfo.PlayerInfos)
                         {
                             EKMPPlayer mpPlayer = new EKMPPlayer();
-                            if (playerInfo.ID == playerID)
-			    	            GameNet.Player = mpPlayer; // This is our player instance
                             mpPlayer.Client = null;
-                            mpPlayer.Player = null;
                             mpPlayer.ID = playerInfo.ID;
                             mpPlayer.Name = playerInfo.Name;
-                            mpPlayer.OnJoin();
+                            if (playerInfo.ID == playerID) // If this is our player instance
+                            {
+                                mpPlayer.PlayerCtrl = Utils.GetLocalPlayer();
+			    	            GameNet.Player = mpPlayer;
+                            }
+                            else
+                            {
+                                mpPlayer.PlayerCtrl = GameNet.TryInstantiatePlayer();
+                            }
+                            GameNet.Players.Add(mpPlayer);
                         }
                     });
                     break;
                 }
-                case S2CPacket.PlayerJoin:
+                case S2CPacketID.PlayerJoin:
                 {
                     EKMPPlayer mpPlayer = new EKMPPlayer();
                     mpPlayer.Client = null;
-                    mpPlayer.Player = null;
+                    mpPlayer.PlayerCtrl = GameNet.TryInstantiatePlayer();
                     mpPlayer.ID = reader.ReadUInt32();
                     mpPlayer.Name = reader.ReadString();
                     Plugin.CallOnMainThread(() => mpPlayer.OnJoin());
                     break;
                 }
-                case S2CPacket.PlayerLeave:
+                case S2CPacketID.PlayerLeave:
                 {
                     uint playerID = reader.ReadUInt32();
-                    Plugin.CallOnMainThread(() => GameNet.GetPlayer(playerID).OnDisconnected());
+                    Plugin.CallOnMainThread(() => GameNet.GetPlayer(playerID).OnDisconnect());
                     break;
                 }
-                case S2CPacket.PlayerMove:
+                case S2CPacketID.PlayerMove:
                 {
                     uint playerID = reader.ReadUInt32();
                     Plugin.CallOnMainThread(() => GameNet.GetPlayer(playerID).OnMove());
                     break;
                 }
-                case S2CPacket.SceneChange:
+                case S2CPacketID.SceneChange:
                 {
                     int sceneID = reader.Read();
                     Plugin.CallOnMainThread(() => SceneManager.LoadScene(sceneID));

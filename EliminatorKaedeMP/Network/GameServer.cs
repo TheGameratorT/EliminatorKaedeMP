@@ -1,6 +1,8 @@
-﻿using System.IO;
+﻿using K_PlayerControl;
+using System.IO;
 using System.Net;
 using System.Text;
+using UnityEngine;
 
 namespace EliminatorKaedeMP
 {
@@ -53,7 +55,7 @@ namespace EliminatorKaedeMP
 
             EKMPPlayer mpPlayer = new EKMPPlayer();
             mpPlayer.Client = netClient;
-            mpPlayer.Player = null;
+            mpPlayer.PlayerCtrl = GameNet.TryInstantiatePlayer();
             mpPlayer.Name = reader.ReadString();
             mpPlayer.ID = nextPlayerID;
 
@@ -63,7 +65,7 @@ namespace EliminatorKaedeMP
                 mpPlayer.OnPacketReceived(bytes);
             };
             netClient.OnDisconnected = (NetClient netClient) => {
-                Plugin.CallOnMainThread(() => mpPlayer.OnDisconnected());
+                Plugin.CallOnMainThread(() => mpPlayer.OnDisconnect());
             };
 
             Plugin.CallOnMainThread(() => mpPlayer.OnJoin());
@@ -73,7 +75,7 @@ namespace EliminatorKaedeMP
         {
             EKMPPlayer mpPlayer = new EKMPPlayer();
             mpPlayer.Client = null;
-            mpPlayer.Player = null;
+            mpPlayer.PlayerCtrl = Utils.GetLocalPlayer();
             mpPlayer.Name = GameNet.PlayerName;
             mpPlayer.ID = nextPlayerID;
             nextPlayerID++;
@@ -81,16 +83,21 @@ namespace EliminatorKaedeMP
             GameNet.Players.Add(mpPlayer);
         }
 
-        public void NotifyPlayerJoined(EKMPPlayer player)
+        public void NotifyPlayerJoined(EKMPPlayer playerWhoJoined)
         {
             using MemoryStream stream = new MemoryStream();
             using BinaryWriter writer = new BinaryWriter(stream);
             
-            writer.Write((int) S2CPacket.PlayerJoin);
-            writer.Write(player.ID);
-            writer.Write(player.Name);
+            writer.Write((int) S2CPacketID.PlayerJoin);
+            writer.Write(playerWhoJoined.ID);
+            writer.Write(playerWhoJoined.Name);
 
-            BroadcastPacket(stream.ToArray());
+            byte[] bytes = stream.ToArray();
+            foreach (EKMPPlayer player in GameNet.Players)
+            {
+                if (player.ID != GameNet.Player.ID && player != playerWhoJoined)
+                    player.Client.SendPacket(bytes);
+            }
         }
 
         // Sends a packet to all the players, except ourselves

@@ -5,7 +5,7 @@ using System.Text;
 
 namespace EliminatorKaedeMP
 {
-    public class Scene
+    public class SceneID
     {
         public const int Loading = 0;
         public const int Dam = 1;
