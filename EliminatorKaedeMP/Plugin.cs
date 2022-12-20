@@ -8,6 +8,8 @@ using System.Reflection;
 using UnityEngine;
 using K_PlayerControl.UI;
 using RootMotion.FinalIK;
+using System.Linq;
+using System.ComponentModel;
 
 namespace EliminatorKaedeMP
 {
@@ -20,7 +22,6 @@ namespace EliminatorKaedeMP
 		private static int mainThreadId;
 		private static readonly List<object> logQueue = new List<object>();
 		private static readonly List<MainThreadCallCallback> mainThreadCallCallbacks = new List<MainThreadCallCallback>();
-		public static bool IsInstantiatingPlayer = false;
 
         private void Awake()
         {
@@ -29,36 +30,25 @@ namespace EliminatorKaedeMP
 
             Harmony harmony = new Harmony(PluginInfo.PLUGIN_GUID);
 
-            MethodInfo gameStartMethod = AccessTools.Method(typeof(GameManager), "Start");
-            MethodInfo gameStartPatchMethod = AccessTools.Method(typeof(Plugin), "GameManager_Start_Postfix");
-            harmony.Patch(gameStartMethod, null, new HarmonyMethod(gameStartPatchMethod));
-
-            MethodInfo playerAct00AwakeMethod = AccessTools.Method(typeof(PlayerAct_00), "Awake");
-            MethodInfo playerAct00AwakePatchMethod = AccessTools.Method(typeof(Plugin), "PlayerAct_00_Awake_Prefix");
-            harmony.Patch(playerAct00AwakeMethod, new HarmonyMethod(playerAct00AwakePatchMethod));
-
-            MethodInfo playerPrefAwakeMethod = AccessTools.Method(typeof(PlayerPref), "Awake");
-            MethodInfo playerPrefAwakePatchMethod = AccessTools.Method(typeof(Plugin), "PlayerPref_Awake_Prefix");
-            harmony.Patch(playerPrefAwakeMethod, new HarmonyMethod(playerPrefAwakePatchMethod));
-
-            MethodInfo uiWeponChangeWeponMethod = AccessTools.Method(typeof(UI_weponIcon), "ChangeWepon");
-            MethodInfo uiWeponUseGranadeMethod = AccessTools.Method(typeof(UI_weponIcon), "UseGranade");
-            MethodInfo uiWeponPrefixMethod = AccessTools.Method(typeof(Plugin), "UI_weponIcon_Prefix");
-            harmony.Patch(uiWeponChangeWeponMethod, new HarmonyMethod(uiWeponPrefixMethod));
-            harmony.Patch(uiWeponUseGranadeMethod, new HarmonyMethod(uiWeponPrefixMethod));
-
-            MethodInfo testa = AccessTools.Method(typeof(PlayerAct_00), "Update");
-            MethodInfo testb = AccessTools.Method(typeof(Plugin), "TESTB");
-            harmony.Patch(testa, new HarmonyMethod(testb));
+			MethodInfo[] methods = typeof(Patches).GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+			foreach (MethodInfo method in methods)
+			{
+				PatchAttr[] attributes = (PatchAttr[]) method.GetCustomAttributes(typeof(PatchAttr), false);
+				foreach (PatchAttr attribute in attributes)
+				{
+					MethodInfo targetMethod = AccessTools.Method(attribute.TargetClass, attribute.TargetMethod);
+					if (attribute.PatchType == PatchAttr.EPatchType.Prefix)
+						harmony.Patch(targetMethod, new HarmonyMethod(method));
+					else if (attribute.PatchType == PatchAttr.EPatchType.Postfix)
+						harmony.Patch(targetMethod, null, new HarmonyMethod(method));
+					else
+						throw new InvalidEnumArgumentException("PatchType", (int) attribute.PatchType, typeof(PatchAttr.EPatchType));
+				}
+			}
 
 			m_Instance = this;
 			mainThreadId = Thread.CurrentThread.ManagedThreadId;
         }
-
-		public static void TESTB(PlayerAct_00 __instance)
-		{
-			Log(__instance.AFGet<AimIK>("_AimIK"));
-		}
 
         private void Update()
         {
@@ -111,31 +101,14 @@ namespace EliminatorKaedeMP
 	        }
 	        if (Input.GetKeyDown(KeyCode.K))
 	        {
-				Log("PLAYER CREATE");
-				PlayerExtensions.TryInstantiatePlayer(null);
+				Log("Plugin -> TryInstantiateNetPlayer");
+				EKMPPlayer player = new EKMPPlayer();
+				player.Client = null;
+				player.Name = "";
+				player.ID = 1;
+				player.PlayerCtrl = PlayerExtras.TryInstantiateNetPlayer(player);
 	        }
         }
-
-		// This function is called when the game starts
-		public static void GameManager_Start_Postfix(GameManager __instance)
-		{
-			GameNet.OnGameStart();
-		}
-
-		public static bool PlayerAct_00_Awake_Prefix(PlayerAct_00 __instance)
-		{
-			return !IsInstantiatingPlayer;
-		}
-
-		public static bool PlayerPref_Awake_Prefix(PlayerPref __instance)
-		{
-			return !IsInstantiatingPlayer;
-		}
-
-		public static bool UI_weponIcon_Prefix(UI_weponIcon __instance)
-		{
-			return __instance.GetComponent<PlayerPref>() == PlayerPref.instance;
-		}
 
 		public static void CallOnMainThread(MainThreadCallCallback callback)
 		{

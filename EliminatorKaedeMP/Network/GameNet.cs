@@ -61,8 +61,8 @@ namespace EliminatorKaedeMP
                 return;
             foreach (EKMPPlayer player in Players)
                 player.PlayerCtrl = (player.ID == Player.ID) ?
-                    PlayerExtensions.GetLocalPlayer() :
-                    PlayerExtensions.TryInstantiatePlayer(player);
+                    PlayerExtras.GetLocalPlayer() :
+                    PlayerExtras.TryInstantiateNetPlayer(player);
         }
     }
 }

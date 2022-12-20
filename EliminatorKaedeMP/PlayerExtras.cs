@@ -3,15 +3,14 @@ using K_PlayerControl;
 using RG_GameCamera.Config;
 using RootMotion.FinalIK;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using UnityEngine;
 
 namespace EliminatorKaedeMP
 {
-    public class PlayerExtensions
+	public class PlayerExtras
     {
+		public static bool IsInitializingNetPlayer = false;
+
         // Gets the local player controller, null if not in game
         public static PlayerControl GetLocalPlayer()
         {
@@ -19,7 +18,7 @@ namespace EliminatorKaedeMP
         }
 
         // Tries to create a player if in game
-        public static PlayerControl TryInstantiatePlayer(EKMPPlayer mpPlayer)
+        public static PlayerControl TryInstantiateNetPlayer(EKMPPlayer mpPlayer)
         {
             if (!Utils.IsInGame())
                 return null;
@@ -27,22 +26,22 @@ namespace EliminatorKaedeMP
             if (player == null)
                 return null;
 
-			Plugin.IsInstantiatingPlayer = true;
+			IsInitializingNetPlayer = true;
             PlayerControl newPlayer = UnityEngine.Object.Instantiate(player.gameObject).GetComponent<PlayerControl>();
             try
             {
-                InitializePlayer(player, mpPlayer);
+                InitializeNetPlayer(newPlayer, mpPlayer);
             }
             catch (Exception ex)
             {
                 Plugin.Log(ex);
             }
-			Plugin.IsInstantiatingPlayer = false;
+			IsInitializingNetPlayer = false;
             return newPlayer;
         }
 
         // Initializes the player in a way that allows for it to be controlled by our network manager
-        private static void InitializePlayer(PlayerControl player, EKMPPlayer mpPlayer)
+        public static void InitializeNetPlayer(PlayerControl player, EKMPPlayer mpPlayer)
         {
             // Custom recreation of PlayerControl.InitializePlayerControl
 
@@ -53,13 +52,17 @@ namespace EliminatorKaedeMP
             // PlayerSound_Manager sound = new PlayerSound_Manager();
             // Player_EffectManager effect = new Player_EffectManager();
 
-			PlayerPref playerPref = CreatePlayerPref(player, mpPlayer);
+			Player_Equipment playerEquipment = player.GetComponent<Player_Equipment>();
+			// Because the player had this on, we must disable it on the clone before re-initializing otherwise
+			// creating a PlayerPref will fail because SetPlayerCharacter will try to call changeWeponID before it can.
+			playerEquipment.initialize = false;
+
+			PlayerPref playerPref = CreateNetPlayerPref(player, mpPlayer);
             Player_DecalManager decal = Player_DecalManager.Instance;
             Player_Config_manager keyInput = Player_Config_manager.Instance;
             PlayerSound_Manager sound = PlayerSound_Manager.Instance;
             Player_EffectManager effect = Player_EffectManager.Instance;
 
-			Player_Equipment playerEquipment = player.GetComponent<Player_Equipment>();
 			PlayerAct_00 playerAct00 = player.GetComponent<PlayerAct_00>();
 			PlayerAct_01 playerAct01 = player.GetComponent<PlayerAct_01>();
             
@@ -82,6 +85,7 @@ namespace EliminatorKaedeMP
 			highFrictionMaterial.staticFriction = 1f;
 			highFrictionMaterial.bounciness = 0f;
 
+			// TODO: get rid of UI gun
 			sh_001_UI_gun uiGun = PlayerPref.Instance.gameObject.GetComponent<sh_001_UI_gun>();
 
             GrounderFBBIK[] GroundIK_list = new GrounderFBBIK[playerPref.SyncAnimator.Length];
@@ -112,7 +116,7 @@ namespace EliminatorKaedeMP
             InitializePlayerEquipment(playerEquipment, playerPref);
             InitializePlayerAct00(playerAct00, playerPref, keyInput, uiGun);
 			InitializePlayerAct01(playerAct01, playerPref, keyInput);
-			uiGun.Initialize();
+			//uiGun.Initialize();
 			sound.PlayerSound_ini("AudioPosition");
 			player.AFSet("player_ini", true);
 			player.AFSet("downforce_store", player.DownForce);
@@ -131,18 +135,25 @@ namespace EliminatorKaedeMP
 				playerFootSound.AFSet("PlayerObject", player.gameObject);
 				playerFootSound.AFSet("FootSoundCtrl", playerFootSoundControler);
 			}
+
+			Plugin.Log("INIT Player _AimIK state: " + playerAct00.AFGet<AimIK>("_AimIK"));
         }
 
-		private static PlayerPref CreatePlayerPref(PlayerControl player, EKMPPlayer mpPlayer)
+		private static PlayerPref CreateNetPlayerPref(PlayerControl player, EKMPPlayer mpPlayer)
 		{
 			GameObject playerPrefObj = new GameObject("PlayerPref");
-			PlayerPref playerPref = playerPrefObj.AddComponent<PlayerPref>();
+			EKMPPlayerPref playerPref = playerPrefObj.AddComponent<EKMPPlayerPref>();
+			playerPref.MPPlayer = mpPlayer;
 			playerPref.PlayerIncetance = player.gameObject;
+			playerPref.PerfIncetance = playerPrefObj;
 			playerPref.SyncAnimator = PlayerPref.Instance.SyncAnimator;
-			playerPref.MainCamera = PlayerPref.Instance.MainCamera;
+			playerPref.GameCamera = PlayerPref.Instance.GameCamera; // might need custom dummy
+			playerPref.MainCamera = PlayerPref.Instance.MainCamera; // might need custom dummy
+			playerPref.DummyCamera = PlayerPref.Instance.DummyCamera; // might need custom dummy
 			playerPref.weponList = PlayerPref.Instance.weponList;
 			playerPref.sub_weponList = PlayerPref.Instance.sub_weponList;
-			playerPref.PlayerData = PlayerPref.Instance.PlayerData;
+			playerPref.wepon_static_List = PlayerPref.Instance.wepon_static_List; // might need custom dummy
+			playerPref.PlayerData = PlayerPref.Instance.PlayerData; // might need custom dummy
 			playerPref.LayerMaskInfo = PlayerPref.Instance.LayerMaskInfo;
 			SetPlayerCharacter(playerPref, 0);
 			playerPrefObj.AddComponent<UI_weponIcon>();
@@ -206,8 +217,8 @@ namespace EliminatorKaedeMP
 			}
 
 			playerAct00.AFSet("UI_gun", uiGun);
-			uiGun.initialize = false;
-			uiGun.ExecuteInitialize(0f);
+			//uiGun.initialize = false;
+			//uiGun.ExecuteInitialize(0f);
 
 			if (playerPref.isMain)
 			{
@@ -248,7 +259,9 @@ namespace EliminatorKaedeMP
 			playerAct00.AFSet("cameraTransform", playerPref.MainCamera.transform);
 			playerAct00.player_ini = true;
 			playerAct00.RELOAD_STEP = PlayerAct_00.ReloadState.None;
-			uiGun.Initialize();
+			//uiGun.Initialize();
+
+			Plugin.Log("INIT PlAct00 _AimIK state: " + playerAct00.AFGet<AimIK>("_AimIK"));
         }
 
 		private static void InitializePlayerAct01(PlayerAct_01 playerAct01, PlayerPref playerPref, Player_Config_manager keyInput)
