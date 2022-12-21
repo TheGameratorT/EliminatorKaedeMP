@@ -74,23 +74,25 @@ namespace EliminatorKaedeMP
                 case S2CPacketID.GameJoinInfo:
                 {
                     // Receive all information about the game
-                    GameJoinInfoData joinInfo = (GameJoinInfoData) Utils.DeserializePacket(stream);
+                    stream.Position = 4;
+                    GameJoinInfoData joinInfo = (GameJoinInfoData) Utils.Deserialize(stream);
                     uint playerID = joinInfo.PlayerID;
                     Plugin.CallOnMainThread(() =>
                     {
                         foreach (PlayerInfoData playerInfo in joinInfo.PlayerInfos)
                         {
                             EKMPPlayer mpPlayer = new EKMPPlayer();
-                            mpPlayer.Client = null;
                             mpPlayer.ID = playerInfo.ID;
                             mpPlayer.Name = playerInfo.Name;
                             if (playerInfo.ID == playerID) // If this is our player instance
                             {
+                                mpPlayer.Client = netClient;
                                 mpPlayer.PlayerCtrl = GameNet.GetLocalPlayer();
 			    	            GameNet.Player = mpPlayer;
                             }
                             else
                             {
+                                mpPlayer.Client = null;
                                 mpPlayer.TryInstantiateNetPlayer();
                             }
                             GameNet.Players.Add(mpPlayer);
@@ -117,7 +119,9 @@ namespace EliminatorKaedeMP
                 case S2CPacketID.PlayerMove:
                 {
                     uint playerID = reader.ReadUInt32();
-                    Plugin.CallOnMainThread(() => GameNet.GetPlayer(playerID).OnMove());
+                    stream.Position = 8;
+                    PlayerMoveData playerMoveData = (PlayerMoveData) Utils.Deserialize(stream);
+                    Plugin.CallOnMainThread(() => GameNet.GetPlayer(playerID).OnMoveData(playerMoveData));
                     break;
                 }
                 case S2CPacketID.SceneChange:

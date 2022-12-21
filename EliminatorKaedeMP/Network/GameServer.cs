@@ -94,15 +94,10 @@ namespace EliminatorKaedeMP
             writer.Write(playerWhoJoined.ID);
             writer.Write(playerWhoJoined.Name);
 
-            byte[] bytes = stream.ToArray();
-            foreach (EKMPPlayer player in GameNet.Players)
-            {
-                if (player.ID != GameNet.Player.ID && player != playerWhoJoined)
-                    player.Client.SendPacket(bytes);
-            }
+            playerWhoJoined.BroadcastPacketExcludingSelf(stream.ToArray());
         }
 
-        // Sends a packet to all the players, except ourselves
+        // Sends a packet to all the players, except to the server because it already has the data
         public void BroadcastPacket(byte[] bytes)
         {
             foreach (EKMPPlayer player in GameNet.Players)

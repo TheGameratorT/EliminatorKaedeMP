@@ -28,28 +28,16 @@ namespace EliminatorKaedeMP
             bytes[3 + offset] = (byte) (value >> 24);
         }
 
-        public static byte[] SerializePacket(S2CPacketID packetID, object obj)
+        public static void Serialize(BinaryWriter writer, object obj)
         {
-            byte[] result;
-
             using MemoryStream stream = new MemoryStream();
-            BinaryFormatter formatter = new BinaryFormatter();
-            formatter.Serialize(stream, obj);
-            byte[] serialized = stream.ToArray();
-
-            result = new byte[4 + serialized.Length];
-
-            WriteInt(result, 0, (int) packetID);
-            Array.Copy(serialized, 0, result, 4, serialized.Length);
-
-            return result;
+            new BinaryFormatter().Serialize(stream, obj);
+            writer.Write(stream.ToArray());
         }
 
-        public static object DeserializePacket(MemoryStream stream)
+        public static object Deserialize(MemoryStream stream)
         {
-            stream.Position = 4;
-            BinaryFormatter formatter = new BinaryFormatter();
-            return formatter.Deserialize(stream);
+            return new BinaryFormatter().Deserialize(stream);
         }
 
         // Returns true if the player is in Dam or Mission scene

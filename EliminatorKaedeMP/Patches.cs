@@ -59,7 +59,9 @@ namespace EliminatorKaedeMP
 			PlayerControl player = __instance.GetComponent<PlayerControl>();
 			if (player != GameNet.GetLocalPlayer())
 			{
+				EKMPPlayer.IsNetPlayerCtx = true;
 				player.AFGet<EKMPPlayerPref>("Perf").MPPlayer.InitializeNetPlayer(player);
+				EKMPPlayer.IsNetPlayerCtx = false;
 				return false;
 			}
 			return true;

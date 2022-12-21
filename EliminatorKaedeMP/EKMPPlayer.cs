@@ -4,13 +4,14 @@ using RG_GameCamera.Config;
 using RootMotion.FinalIK;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using UnityEngine;
 using UnityEngine.UI;
 
 namespace EliminatorKaedeMP
 {
-    // This is our multiplayer handle for the player
-    public class EKMPPlayer
+	// This is our multiplayer handle for the player
+	public class EKMPPlayer
     {
 		public static bool IsNetPlayerCtx = false;
 
@@ -24,9 +25,33 @@ namespace EliminatorKaedeMP
         // Server - This function is called on the player that sent the packet
         public void OnPacketReceived(byte[] bytes)
         {
+            try
+            {
+                using MemoryStream stream = new MemoryStream(bytes);
+                using BinaryReader reader = new BinaryReader(stream);
 
+                C2SPacketID packetID = (C2SPacketID) reader.Read();
+                switch (packetID)
+                {
+                case C2SPacketID.PlayerMove:
+                {
+					stream.Position = 4;
+					PlayerMoveData playerMoveData = (PlayerMoveData) Utils.Deserialize(stream);
+					BroadcastMoveData(playerMoveData);
+                    Plugin.CallOnMainThread(() => OnMoveData(playerMoveData));
+                    break;
+                }
+                default:
+                    break;
+                }
+            }
+            catch (Exception ex)
+            {
+                Plugin.Log(ex);
+            }
         }
-
+		
+		// Server + Client
         public void OnJoin()
         {
             GameNet.Players.Add(this);
@@ -48,10 +73,15 @@ namespace EliminatorKaedeMP
                     playerInfo.Name = mpPlayer.Name;
                     joinData.PlayerInfos.Add(playerInfo);
                 }
-                Client.SendPacket(Utils.SerializePacket(S2CPacketID.GameJoinInfo, joinData));
+				using MemoryStream stream = new MemoryStream();
+				using BinaryWriter writer = new BinaryWriter(stream);
+				writer.Write((int) S2CPacketID.GameJoinInfo);
+				Utils.Serialize(writer, joinData);
+                Client.SendPacket(stream.ToArray());
             }
         }
 
+		// Server + Client
         public void OnDisconnect()
         {
             GameNet.Players.Remove(this);
@@ -68,23 +98,75 @@ namespace EliminatorKaedeMP
                 GameNet.Server.BroadcastPacket(bytes);
             }
         }
-
-        public void OnMove()
+		
+        // Server - Similar to GameServer.BroadcastPacket but doesn't send the packet to this player instance's client
+		public void BroadcastPacketExcludingSelf(byte[] bytes)
         {
-
+            foreach (EKMPPlayer player in GameNet.Players)
+            {
+                if (player.ID != GameNet.Player.ID && player != this)
+                    player.Client.SendPacket(bytes);
+            }
+        }
+		
+		// Server + Client - Runs when movement data is received
+        public void OnMoveData(PlayerMoveData moveData)
+        {
+			PlayerCtrl.transform.position = moveData.GetPlayerPos();
         }
 
-		// Extension of PlayerControl.OnUpdate, runs after
-		public void OnUpdate()
+		// Server - Sends the movement data of a player to the other clients
+		private void BroadcastMoveData(PlayerMoveData moveData)
 		{
-			if (PlayerCtrl == null || GameNet.GetLocalPlayer() == PlayerCtrl)
-				return;
-
-			Vector3 nametagDirection = (PlayerPref.instance.MainCamera.transform.position - nicknameCanvasRect.position).normalized;
-			nicknameCanvasRect.rotation = Quaternion.LookRotation(nametagDirection);
+            using MemoryStream stream = new MemoryStream();
+            using BinaryWriter writer = new BinaryWriter(stream);
+			writer.Write((int) S2CPacketID.PlayerMove);
+			writer.Write(ID);
+			Utils.Serialize(writer, moveData);
+			BroadcastPacketExcludingSelf(stream.ToArray());
 		}
 
-        // Tries to create a player if in game
+		// Client - Sends the movement data to the server (only the local player should run this)
+        private void SendMoveData()
+        {
+			PlayerMoveData moveData = new PlayerMoveData();
+			moveData.SetPlayerPos(PlayerCtrl.transform.position);
+
+			if (GameNet.IsServer)
+			{
+				// If we are a server, there is not point in sending the data to ourselves, just send it to the other clients
+				BroadcastMoveData(moveData);
+			}
+			else
+			{
+				// But if we are a client, we must send it to the server so that it will broadcast it to other clients
+				using MemoryStream stream = new MemoryStream();
+				using BinaryWriter writer = new BinaryWriter(stream);
+				writer.Write((int) C2SPacketID.PlayerMove);
+				Utils.Serialize(writer, moveData);
+				Client.SendPacket(stream.ToArray());
+			}
+        }
+
+		// Client - Extension of PlayerControl.OnUpdate, runs after
+		public void OnUpdate()
+		{
+			if (PlayerCtrl == null)
+				return;
+
+			if (GameNet.GetLocalPlayer() == PlayerCtrl)
+			{
+				if (ID == GameNet.Player.ID)
+					SendMoveData();
+			}
+			else
+			{
+				Vector3 nametagDirection = (PlayerPref.instance.MainCamera.transform.position - nicknameCanvasRect.position).normalized;
+				nicknameCanvasRect.rotation = Quaternion.LookRotation(nametagDirection);
+			}
+		}
+
+        // Server + Client - Tries to create a player if in game
         public PlayerControl TryInstantiateNetPlayer()
         {
             if (!Utils.IsInGame())
@@ -109,7 +191,7 @@ namespace EliminatorKaedeMP
             return newPlayer;
         }
 
-        // Initializes the player in a way that allows for it to be controlled by our network manager
+        // Server + Client - Initializes the player in a way that allows for it to be controlled by our network manager
         public void InitializeNetPlayer(PlayerControl player)
         {
             // Custom recreation of PlayerControl.InitializePlayerControl
@@ -193,12 +275,14 @@ namespace EliminatorKaedeMP
 				playerFootSound.AFSet("FootSoundCtrl", playerFootSoundControler);
 			}
 
+			Transform playerHeadTransform = player.gameObject.transform.Find("Root/DEMO_Pelvis/DEMO_Spine/DEMO_Spine1/Spine_1_5/DEMO_Spine2/DEMO_Spine3/DEMO_Neck/DEMO_Neck2/DEMO_Head");
+
 			GameObject nicknameCanvasObj = new GameObject("NicknameCanvas");
 			Canvas nicknameCanvas = nicknameCanvasObj.AddComponent<Canvas>();
 			nicknameCanvasRect = (RectTransform) nicknameCanvasObj.transform;
 			nicknameCanvas.renderMode = RenderMode.WorldSpace;
-			nicknameCanvasRect.SetParent(player.gameObject.transform);
-			nicknameCanvasRect.localPosition = new Vector3(0.0f, 1.667f, 0.0f);
+			nicknameCanvasRect.SetParent(playerHeadTransform);
+			nicknameCanvasRect.localPosition = new Vector3(0.0f, 0.28f, 0.0f);
 			nicknameCanvasRect.localRotation = Quaternion.identity;
 			nicknameCanvasRect.localScale = new Vector3(0.0025f, 0.0025f, 1.0f);
 			nicknameCanvasRect.pivot = new Vector2(0.5f, 0.5f);
@@ -220,6 +304,7 @@ namespace EliminatorKaedeMP
 			nicknameTextRect.sizeDelta = new Vector2(350.0f, 40.0f);
         }
 
+		// Server + Client
 		private PlayerPref CreateNetPlayerPref(PlayerControl player)
 		{
 			GameObject playerPrefObj = new GameObject("PlayerPref");
@@ -240,7 +325,8 @@ namespace EliminatorKaedeMP
 			playerPrefObj.AddComponent<UI_weponIcon>();
 			return playerPref;
 		}
-
+		
+		// Server + Client
         private static void InitializePlayerEquipment(Player_Equipment playerEquipment, PlayerPref playerPref)
         {
             playerEquipment.AFSet("Perf", playerPref);
@@ -254,7 +340,8 @@ namespace EliminatorKaedeMP
             playerEquipment.AFSet("weponIcon", playerPref.gameObject.GetComponent<UI_weponIcon>());
 			playerEquipment.initialize = true;
         }
-
+		
+		// Server + Client
         private static void InitializePlayerAct00(PlayerAct_00 playerAct00, PlayerPref playerPref, Player_Config_manager keyInput)
         {
 			PlayerAct_00 ogPlayerAct00 = GameNet.GetLocalPlayer().GetComponent<PlayerAct_00>();
@@ -335,7 +422,8 @@ namespace EliminatorKaedeMP
 			playerAct00.player_ini = true;
 			playerAct00.RELOAD_STEP = PlayerAct_00.ReloadState.None;
         }
-
+		
+		// Server + Client
 		private static void InitializePlayerAct01(PlayerAct_01 playerAct01, PlayerPref playerPref, Player_Config_manager keyInput)
 		{
 			playerAct01.AFSet("Perf", playerPref);
@@ -353,7 +441,8 @@ namespace EliminatorKaedeMP
 				playerPref.SyncAnimator[i].SetLayerWeight(cqb_0, 0f);
 			playerAct01.AFSet("player_ini", true);
 		}
-
+		
+		// Server + Client
 		private static void SetPlayerCharacter(PlayerPref playerPref, int characterID)
 		{
 			for (int i = 0; i < playerPref.PlayerData.Length; i++)
