@@ -8,6 +8,7 @@
         PlayerLeave,
         PlayerMove,
         PlayerJump,
+        PlayerCtrlKey,
         SceneChange
     }
 
@@ -15,6 +16,7 @@
     public enum C2SPacketID
     {
         PlayerMove,
-        PlayerJump
+        PlayerJump,
+        PlayerCtrlKey
     }
 }

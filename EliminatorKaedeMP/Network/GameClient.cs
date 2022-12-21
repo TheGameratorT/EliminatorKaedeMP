@@ -1,6 +1,5 @@
 ﻿using System;
 using System.IO;
-using System.Runtime.InteropServices.ComTypes;
 using System.Text;
 using UnityEngine.SceneManagement;
 
@@ -136,6 +135,14 @@ namespace EliminatorKaedeMP
                     uint playerID = reader.ReadUInt32();
                     int jumpType = reader.ReadInt32();
                     Plugin.CallOnMainThread(() => GameNet.GetPlayer(playerID).OnJumpData(jumpType));
+                    break;
+                }
+                case S2CPacketID.PlayerCtrlKey:
+                {
+                    uint playerID = reader.ReadUInt32();
+					EKMPPlayer.CtrlKey key = (EKMPPlayer.CtrlKey) reader.ReadInt32();
+					bool isDown = reader.ReadInt32() != 0 ? true : false;
+                    Plugin.CallOnMainThread(() => GameNet.GetPlayer(playerID).OnControlData(key, isDown));
                     break;
                 }
                 case S2CPacketID.SceneChange:

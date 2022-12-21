@@ -1,23 +1,24 @@
 ﻿using K_PlayerControl;
 using K_PlayerControl.UI;
-using RG_GameCamera.CharacterController;
 using RG_GameCamera.Config;
-using RG_GameCamera.Effects;
 using RootMotion.FinalIK;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.InteropServices.ComTypes;
-using System.Text;
 using UnityEngine;
 using UnityEngine.UI;
-using static DynamicBoneColliderBase;
 
 namespace EliminatorKaedeMP
 {
 	// This is our multiplayer handle for the player
 	public class EKMPPlayer
     {
+		public enum CtrlKey
+		{
+			Aim,
+			Crouch
+		}
+
 		public static bool IsNetPlayerCtx = false;
 		
         public uint ID;
@@ -26,6 +27,8 @@ namespace EliminatorKaedeMP
         public PlayerControl PlayerCtrl = null;
 
 		private RectTransform nicknameCanvasRect = null; // This will only exist for other players, not for ours
+		private bool netCtrl_isAiming = false; // For the local player this acts as a last state, like wasAimingInLastFrame
+		private bool netCtrl_isCrouching = false; // For the local player this acts as a last state, like wasCrouchingInLastFrame
 
         // Server - This function is called on the player that sent the packet
         public void OnPacketReceived(byte[] bytes)
@@ -51,6 +54,14 @@ namespace EliminatorKaedeMP
 					int jumpType = reader.ReadInt32();
 					BroadcastJumpData(jumpType);
                     Plugin.CallOnMainThread(() => OnJumpData(jumpType));
+                    break;
+                }
+                case C2SPacketID.PlayerCtrlKey:
+                {
+					CtrlKey key = (CtrlKey) reader.ReadInt32();
+					bool isDown = reader.ReadInt32() != 0 ? true : false;
+					BroadcastControlData(key, isDown);
+                    Plugin.CallOnMainThread(() => OnControlData(key, isDown));
                     break;
                 }
                 /*case C2SPacketID.PlayerCrouch:
@@ -192,20 +203,27 @@ namespace EliminatorKaedeMP
 
 			if (GameNet.GetLocalPlayer() == PlayerCtrl)
 			{
-				if (ID == GameNet.Player.ID)
-					SendMoveData();
+				SendMoveData();
+
+				bool isAiming = PlayerCtrl.IsAiming();
+				if (netCtrl_isAiming != isAiming)
+				{
+					SendControlData(CtrlKey.Aim, isAiming);
+					netCtrl_isAiming = isAiming;
+				}
+
+				bool isCrouching = PlayerCtrl.IsCrouch();
+				if (netCtrl_isCrouching != isCrouching)
+				{
+					SendControlData(CtrlKey.Crouch, isCrouching);
+					netCtrl_isCrouching = isCrouching;
+				}
 			}
 			else
 			{
 				Vector3 nametagDirection = (PlayerPref.instance.MainCamera.transform.position - nicknameCanvasRect.position).normalized;
 				nicknameCanvasRect.rotation = Quaternion.LookRotation(nametagDirection);
 			}
-		}
-
-		// Server + Client
-		public void SetCrouching(bool crouching)
-		{
-
 		}
 
         // Server + Client - Tries to create a player if in game
@@ -611,10 +629,7 @@ namespace EliminatorKaedeMP
 		{
 			PlayerControl player = PlayerCtrl;
 
-			if (player != GameNet.GetLocalPlayer())
-				return;
-
-			if (player.FlyState != PlayerControl.Fly.none)
+			if (player != GameNet.GetLocalPlayer() || player.FlyState != PlayerControl.Fly.none)
 				return;
 			
 			PlayerPref pref = player.AFGet<PlayerPref>("Perf");
@@ -702,13 +717,59 @@ namespace EliminatorKaedeMP
 			}
 		}
 
+		// Server + Client - Runs when control data is received
+        public void OnControlData(CtrlKey key, bool isDown)
+		{
+			switch (key)
+			{
+			case CtrlKey.Aim:
+				netCtrl_isAiming = isDown;
+				break;
+			case CtrlKey.Crouch:
+				netCtrl_isCrouching = isDown;
+				break;
+			}
+		}
+
+		// Server - Sends the key data of a player to the other clients
+		private void BroadcastControlData(CtrlKey key, bool isDown)
+		{
+			byte[] jumpData = new byte[sizeof(int) * 4];
+			Utils.WriteInt(jumpData, 0, (int) S2CPacketID.PlayerCtrlKey);
+			Utils.WriteInt(jumpData, 4, (int) ID);
+			Utils.WriteInt(jumpData, 8, (int) key);
+			Utils.WriteInt(jumpData, 12, isDown ? 1 : 0);
+			BroadcastPacketExcludingSelf(jumpData);
+		}
+
+		// Client - Sends the key data to the server (only the local player should run this)
+        private void SendControlData(CtrlKey key, bool isDown)
+        {
+			if (GameNet.IsServer)
+			{
+				// If we are a server, there is not point in sending the data to ourselves, just send it to the other clients
+				BroadcastControlData(key, isDown);
+			}
+			else
+			{
+				// But if we are a client, we must send it to the server so that it will broadcast it to other clients
+				byte[] jumpData = new byte[sizeof(int) * 3];
+				Utils.WriteInt(jumpData, 0, (int) C2SPacketID.PlayerCtrlKey);
+				Utils.WriteInt(jumpData, 4, (int) key);
+				Utils.WriteInt(jumpData, 8, isDown ? 1 : 0);
+				Client.SendPacket(jumpData);
+			}
+        }
+
 		// Server + Client - Replacement for PlayerControl.LateUpdate
 		public void LateUpdate()
 		{
 			PlayerControl player = PlayerCtrl;
 
-			if (player != GameNet.GetLocalPlayer() || !player.AFGet<bool>("player_ini") || Time.timeScale <= 0f)
+			if (!player.AFGet<bool>("player_ini") || Time.timeScale <= 0f)
 				return;
+
+			bool isLocalPlayer = player == GameNet.GetLocalPlayer();
 			
 			PlayerPref pref = player.AFGet<PlayerPref>("Perf");
 			Player_Helth health = player.AFGet<Player_Helth>("Helth");
@@ -719,15 +780,22 @@ namespace EliminatorKaedeMP
 
 			if (player.PlayerState == PlayerControl.State.Playable)
 			{
-				if (pref.isMain || pref.isSub)
+				if (isLocalPlayer)
 				{
-					bool aim = false;
-					if (equipment.E_state == Player_Equipment.State.None)
+					if (pref.isMain || pref.isSub)
 					{
-						if (health.Sick < player.Sick_thredhold)
-							aim = Input.GetKey(keyInput.WeponHold);
+						bool aim = false;
+						if (equipment.E_state == Player_Equipment.State.None)
+						{
+							if (health.Sick < player.Sick_thredhold)
+								aim = Input.GetKey(keyInput.WeponHold);
+						}
+						player.AFSet("aim", aim);
 					}
-					player.AFSet("aim", aim);
+				}
+				else
+				{
+					player.AFSet("aim", netCtrl_isAiming);
 				}
 				
 				bool input_h, input_v;
@@ -742,10 +810,20 @@ namespace EliminatorKaedeMP
 				else
 				{
 					float slopeSpeed = (float) player.AMCall("SlopeSpeed").Invoke(player, null);
-					input_h = Input.GetButton("Horizontal");
-					input_v = Input.GetButton("Vertical");
-					float_h = Input.GetAxis("Horizontal") * slopeSpeed;
-					float_v = Input.GetAxis("Vertical") * slopeSpeed;
+					if (isLocalPlayer)
+					{
+						input_h = Input.GetButton("Horizontal");
+						input_v = Input.GetButton("Vertical");
+						float_h = Input.GetAxis("Horizontal") * slopeSpeed;
+						float_v = Input.GetAxis("Vertical") * slopeSpeed;
+					}
+					else
+					{
+						input_h = false;
+						input_v = false;
+						float_h = 0f;
+						float_v = 0f;
+					}
 				}
 				player.AFSet("input_h", input_h);
 				player.AFSet("input_v", input_v);
@@ -802,7 +880,7 @@ namespace EliminatorKaedeMP
 					}
 				}
 
-				bool crouchHandler = Input.GetKeyDown(keyInput.Crouch);
+				bool crouchHandler = isLocalPlayer ? Input.GetKeyDown(keyInput.Crouch) : false;
 				player.AFSet("crouchHandler", crouchHandler);
 				anim.SetBool("Aim", player.IsAiming());
 				anim.SetBool("Crouch", player.IsCrouch());
@@ -835,8 +913,12 @@ namespace EliminatorKaedeMP
 						player.AFSet("crouch", !player.IsCrouch());
 					player.AFSet("crouchHandler", false);
 				}
+				else if (!isLocalPlayer)
+				{
+					player.AFSet("crouch", netCtrl_isCrouching);
+				}
 
-				player.AMCall("MovementManagement", new System.Type[]{ typeof(float), typeof(float), typeof(bool), typeof(bool) })
+				player.AMCall("MovementManagement", new Type[]{ typeof(float), typeof(float), typeof(bool), typeof(bool) })
 					.Invoke(player, new object[]{ float_h, float_v, player.AFGet<bool>("run"), player.AFGet<bool>("sprint") });
 
 				JumpManagement();
