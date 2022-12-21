@@ -23,12 +23,15 @@
   <ItemGroup>
     <Reference Include="Assembly-CSharp">
       <HintPath>Libraries\Assembly-CSharp.dll</HintPath>
+	  <Private>False</Private>
     </Reference>
     <Reference Include="Assembly-CSharp-firstpass">
       <HintPath>Libraries\Assembly-CSharp-firstpass.dll</HintPath>
+	  <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.UI">
       <HintPath>Libraries\UnityEngine.UI.dll</HintPath>
+	  <Private>False</Private>
     </Reference>
   </ItemGroup>
 </Project>

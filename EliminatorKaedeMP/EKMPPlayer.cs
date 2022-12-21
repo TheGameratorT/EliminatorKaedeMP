@@ -4,7 +4,6 @@ using RG_GameCamera.Config;
 using RootMotion.FinalIK;
 using System;
 using System.Collections.Generic;
-using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
