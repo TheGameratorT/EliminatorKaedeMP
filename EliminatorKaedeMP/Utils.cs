@@ -30,9 +30,11 @@ namespace EliminatorKaedeMP
 
         public static void Serialize(BinaryWriter writer, object obj)
         {
-            using MemoryStream stream = new MemoryStream();
-            new BinaryFormatter().Serialize(stream, obj);
-            writer.Write(stream.ToArray());
+            using (MemoryStream stream = new MemoryStream())
+            {
+                new BinaryFormatter().Serialize(stream, obj);
+                writer.Write(stream.ToArray());
+            }
         }
 
         public static object Deserialize(MemoryStream stream)

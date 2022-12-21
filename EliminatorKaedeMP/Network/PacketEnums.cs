@@ -7,12 +7,14 @@
         PlayerJoin,
         PlayerLeave,
         PlayerMove,
+        PlayerJump,
         SceneChange
     }
 
     // Client -> Server
     public enum C2SPacketID
     {
-        PlayerMove
+        PlayerMove,
+        PlayerJump
     }
 }

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Runtime.InteropServices.ComTypes;
 using System.Text;
 using UnityEngine.SceneManagement;
 
@@ -52,11 +53,17 @@ namespace EliminatorKaedeMP
             }
 
             Plugin.Log("Got valid server handshake confirmation, proceeding...");
-            
-            using MemoryStream stream = new MemoryStream();
-            using BinaryWriter writer = new BinaryWriter(stream);
-            writer.Write(Utils.GetPlayerName());
-            netClient.SendPacket(stream.ToArray());
+
+            byte[] bytes2;
+            using (MemoryStream stream = new MemoryStream())
+            {
+                using (BinaryWriter writer = new BinaryWriter(stream))
+                {
+                    writer.Write(Utils.GetPlayerName());
+                }
+                bytes2 = stream.ToArray();
+            }
+            netClient.SendPacket(bytes2);
 
             netClient.OnPacketReceived = OnPacketReceived;
         }
@@ -68,7 +75,7 @@ namespace EliminatorKaedeMP
                 using MemoryStream stream = new MemoryStream(bytes);
                 using BinaryReader reader = new BinaryReader(stream);
 
-                S2CPacketID packetID = (S2CPacketID) reader.Read();
+                S2CPacketID packetID = (S2CPacketID) reader.ReadInt32();
                 switch (packetID)
                 {
                 case S2CPacketID.GameJoinInfo:
@@ -104,9 +111,9 @@ namespace EliminatorKaedeMP
                 {
                     EKMPPlayer mpPlayer = new EKMPPlayer();
                     mpPlayer.Client = null;
-                    mpPlayer.TryInstantiateNetPlayer();
                     mpPlayer.ID = reader.ReadUInt32();
                     mpPlayer.Name = reader.ReadString();
+                    mpPlayer.TryInstantiateNetPlayer();
                     Plugin.CallOnMainThread(() => mpPlayer.OnJoin());
                     break;
                 }
@@ -124,9 +131,16 @@ namespace EliminatorKaedeMP
                     Plugin.CallOnMainThread(() => GameNet.GetPlayer(playerID).OnMoveData(playerMoveData));
                     break;
                 }
+                case S2CPacketID.PlayerJump:
+                {
+                    uint playerID = reader.ReadUInt32();
+                    int jumpType = reader.ReadInt32();
+                    Plugin.CallOnMainThread(() => GameNet.GetPlayer(playerID).OnJumpData(jumpType));
+                    break;
+                }
                 case S2CPacketID.SceneChange:
                 {
-                    int sceneID = reader.Read();
+                    int sceneID = reader.ReadInt32();
                     Plugin.CallOnMainThread(() => SceneManager.LoadScene(sceneID));
                     break;
                 }

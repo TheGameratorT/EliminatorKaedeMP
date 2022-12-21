@@ -39,9 +39,27 @@ namespace EliminatorKaedeMP
         [PatchAttr(typeof(PlayerControl), "Update", EPatchType.Postfix)]
         static void PlayerControl_Update_Postfix(PlayerControl __instance)
         {
-			/*if (!GameNet.IsNetGame())
-				return;*/
-			GameNet.GetPlayer(__instance)?.OnUpdate();
+			GameNet.GetPlayer(__instance)?.Update();
+        }
+
+        [PatchAttr(typeof(PlayerControl), "JumpManagement", EPatchType.Prefix)]
+        static bool PlayerControl_JumpManagement_Prefix(PlayerControl __instance)
+        {
+			EKMPPlayer player = GameNet.GetPlayer(__instance);
+			if (player == null)
+				return true;
+			player.JumpManagement();
+			return false;
+        }
+
+        [PatchAttr(typeof(PlayerControl), "LateUpdate", EPatchType.Prefix)]
+        static bool PlayerControl_LateUpdate_Prefix(PlayerControl __instance)
+        {
+			EKMPPlayer player = GameNet.GetPlayer(__instance);
+			if (player == null)
+				return true;
+			player.LateUpdate();
+			return true;
         }
 
 		// PlayerAct_00 ----------------------------------------------------------------
@@ -60,7 +78,7 @@ namespace EliminatorKaedeMP
 			if (player != GameNet.GetLocalPlayer())
 			{
 				EKMPPlayer.IsNetPlayerCtx = true;
-				player.AFGet<EKMPPlayerPref>("Perf").MPPlayer.InitializeNetPlayer(player);
+				EKMPPlayer.InitializePlayerAct00(player);
 				EKMPPlayer.IsNetPlayerCtx = false;
 				return false;
 			}

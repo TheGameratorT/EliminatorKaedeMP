@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
 
@@ -147,19 +148,33 @@ namespace EliminatorKaedeMP
             pktData[3] = (byte) (writePkt.Length >> 24);
             Array.Copy(writePkt, 0, pktData, 4, writePkt.Length);
 
-            tcpStream.BeginWrite(pktData, 0, pktData.Length, (IAsyncResult result) =>
+            try
             {
-                tcpStream.EndWrite(result);
-
-                bool writeInProgress;
-                lock (writePktList)
+                tcpStream.BeginWrite(pktData, 0, pktData.Length, (IAsyncResult result) =>
                 {
-                    writePktList.RemoveAt(0);
-                    writeInProgress = writePktList.Count != 0;
-                }
-                if (writeInProgress)
-                    WriteOutgoingPacket();
-            }, null);
+                    tcpStream.EndWrite(result);
+
+                    bool writeInProgress;
+                    lock (writePktList)
+                    {
+                        writePktList.RemoveAt(0);
+                        writeInProgress = writePktList.Count != 0;
+                    }
+                    if (writeInProgress)
+                        WriteOutgoingPacket();
+                }, null);
+            }
+            catch (IOException)
+            {
+                // Connection was lost
+                Disconnect();
+            }
+            catch (Exception ex)
+            {
+                // Something went wrong
+                Plugin.Log(ex);
+                Disconnect();
+            }
         }
 
         private void StartIO()

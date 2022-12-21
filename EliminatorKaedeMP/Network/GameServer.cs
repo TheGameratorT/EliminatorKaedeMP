@@ -52,25 +52,34 @@ namespace EliminatorKaedeMP
 
         private void OnPlayerInfoPacketReceived(NetClient netClient, byte[] bytes)
         {
-            using MemoryStream stream = new MemoryStream(bytes);
-            using BinaryReader reader = new BinaryReader(stream);
+            string playerName;
+            using (MemoryStream stream = new MemoryStream(bytes))
+            {
+                using (BinaryReader reader = new BinaryReader(stream))
+                {
+                    playerName = reader.ReadString();
+                }
+            }
 
-            EKMPPlayer mpPlayer = new EKMPPlayer();
-            mpPlayer.Client = netClient;
-            mpPlayer.TryInstantiateNetPlayer();
-            mpPlayer.Name = reader.ReadString();
-            mpPlayer.ID = nextPlayerID;
+            Plugin.CallOnMainThread(() =>
+            {
+                EKMPPlayer mpPlayer = new EKMPPlayer();
+                mpPlayer.ID = nextPlayerID;
+                mpPlayer.Client = netClient;
+                mpPlayer.Name = playerName;
+                mpPlayer.TryInstantiateNetPlayer();
 
-            nextPlayerID++;
+                nextPlayerID++;
 
-            netClient.OnPacketReceived = (NetClient netClient, byte[] bytes) => {
-                mpPlayer.OnPacketReceived(bytes);
-            };
-            netClient.OnDisconnected = (NetClient netClient) => {
-                Plugin.CallOnMainThread(() => mpPlayer.OnDisconnect());
-            };
+                netClient.OnPacketReceived = (NetClient netClient, byte[] bytes) => {
+                    mpPlayer.OnPacketReceived(bytes);
+                };
+                netClient.OnDisconnected = (NetClient netClient) => {
+                    Plugin.CallOnMainThread(() => mpPlayer.OnDisconnect());
+                };
 
-            Plugin.CallOnMainThread(() => mpPlayer.OnJoin());
+                mpPlayer.OnJoin();
+            });
         }
 
         private void CreateSelfPlayer()
@@ -87,14 +96,18 @@ namespace EliminatorKaedeMP
 
         public void NotifyPlayerJoined(EKMPPlayer playerWhoJoined)
         {
-            using MemoryStream stream = new MemoryStream();
-            using BinaryWriter writer = new BinaryWriter(stream);
-            
-            writer.Write((int) S2CPacketID.PlayerJoin);
-            writer.Write(playerWhoJoined.ID);
-            writer.Write(playerWhoJoined.Name);
-
-            playerWhoJoined.BroadcastPacketExcludingSelf(stream.ToArray());
+            byte[] bytes;
+            using (MemoryStream stream = new MemoryStream())
+            {
+                using (BinaryWriter writer = new BinaryWriter(stream))
+                {
+                    writer.Write((int) S2CPacketID.PlayerJoin);
+                    writer.Write(playerWhoJoined.ID);
+                    writer.Write(playerWhoJoined.Name);
+                }
+                bytes = stream.ToArray();
+            }
+            playerWhoJoined.BroadcastPacketExcludingSelf(bytes);
         }
 
         // Sends a packet to all the players, except to the server because it already has the data
