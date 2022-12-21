@@ -104,9 +104,9 @@ namespace EliminatorKaedeMP
 				Log("Plugin -> TryInstantiateNetPlayer");
 				EKMPPlayer player = new EKMPPlayer();
 				player.Client = null;
-				player.Name = "";
+				player.Name = "Test Player";
 				player.ID = 1;
-				player.PlayerCtrl = PlayerExtras.TryInstantiateNetPlayer(player);
+				player.TryInstantiateNetPlayer();
 	        }
         }
 

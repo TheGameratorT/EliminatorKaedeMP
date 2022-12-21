@@ -58,5 +58,11 @@ namespace EliminatorKaedeMP
             int sceneID = SceneManager.GetActiveScene().buildIndex;
             return sceneID == SceneID.Dam || sceneID == SceneID.DebugStage;
         }
+
+        // Returns the player name in the config
+        public static string GetPlayerName()
+        {
+            return PlayerPref.instance.c_PlayerName;
+        }
     }
 }

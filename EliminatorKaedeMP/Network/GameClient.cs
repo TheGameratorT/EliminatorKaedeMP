@@ -11,12 +11,12 @@ namespace EliminatorKaedeMP
 
         public void Connect(string hostname, int port)
         {
+            GameNet.IsClient = true;
             netClient = new NetClient();
             netClient.Connect(hostname, port);
             netClient.OnDisconnected = OnDisconnected;
             netClient.OnPacketReceived = OnHandshakePacketReceived;
             netClient.SendPacket(Encoding.UTF8.GetBytes("EKMP")); // Begin handshake
-            GameNet.IsConnected = true;
             GameNet.Player = null;
             GameNet.Players.Clear();
         }
@@ -28,7 +28,7 @@ namespace EliminatorKaedeMP
 
         private void OnDisconnected(NetClient netClient)
         {
-            GameNet.IsConnected = false;
+            GameNet.IsClient = false;
             foreach (EKMPPlayer player in GameNet.Players)
             {
                 if (player.ID != GameNet.Player.ID)
@@ -55,7 +55,7 @@ namespace EliminatorKaedeMP
             
             using MemoryStream stream = new MemoryStream();
             using BinaryWriter writer = new BinaryWriter(stream);
-            writer.Write(GameNet.PlayerName);
+            writer.Write(Utils.GetPlayerName());
             netClient.SendPacket(stream.ToArray());
 
             netClient.OnPacketReceived = OnPacketReceived;
@@ -86,12 +86,12 @@ namespace EliminatorKaedeMP
                             mpPlayer.Name = playerInfo.Name;
                             if (playerInfo.ID == playerID) // If this is our player instance
                             {
-                                mpPlayer.PlayerCtrl = PlayerExtras.GetLocalPlayer();
+                                mpPlayer.PlayerCtrl = GameNet.GetLocalPlayer();
 			    	            GameNet.Player = mpPlayer;
                             }
                             else
                             {
-                                mpPlayer.PlayerCtrl = PlayerExtras.TryInstantiateNetPlayer(mpPlayer);
+                                mpPlayer.TryInstantiateNetPlayer();
                             }
                             GameNet.Players.Add(mpPlayer);
                         }
@@ -102,7 +102,7 @@ namespace EliminatorKaedeMP
                 {
                     EKMPPlayer mpPlayer = new EKMPPlayer();
                     mpPlayer.Client = null;
-                    mpPlayer.PlayerCtrl = PlayerExtras.TryInstantiateNetPlayer(mpPlayer);
+                    mpPlayer.TryInstantiateNetPlayer();
                     mpPlayer.ID = reader.ReadUInt32();
                     mpPlayer.Name = reader.ReadString();
                     Plugin.CallOnMainThread(() => mpPlayer.OnJoin());

@@ -13,6 +13,7 @@ namespace EliminatorKaedeMP
 
         public void Start(int port)
         {
+            GameNet.IsServer = true;
             netServer = new NetServer();
             netServer.Start(port);
             netServer.OnClientConnected = OnClientConnected;
@@ -25,6 +26,7 @@ namespace EliminatorKaedeMP
         {
             netServer.Stop();
             netServer = null;
+            GameNet.IsServer = false;
             Plugin.Log("The server has stopped.");
         }
 
@@ -55,7 +57,7 @@ namespace EliminatorKaedeMP
 
             EKMPPlayer mpPlayer = new EKMPPlayer();
             mpPlayer.Client = netClient;
-            mpPlayer.PlayerCtrl = PlayerExtras.TryInstantiateNetPlayer(mpPlayer);
+            mpPlayer.TryInstantiateNetPlayer();
             mpPlayer.Name = reader.ReadString();
             mpPlayer.ID = nextPlayerID;
 
@@ -75,8 +77,8 @@ namespace EliminatorKaedeMP
         {
             EKMPPlayer mpPlayer = new EKMPPlayer();
             mpPlayer.Client = null;
-            mpPlayer.PlayerCtrl = PlayerExtras.GetLocalPlayer();
-            mpPlayer.Name = GameNet.PlayerName;
+            mpPlayer.PlayerCtrl = GameNet.GetLocalPlayer();
+            mpPlayer.Name = Utils.GetPlayerName();
             mpPlayer.ID = nextPlayerID;
             nextPlayerID++;
             GameNet.Player = mpPlayer;
