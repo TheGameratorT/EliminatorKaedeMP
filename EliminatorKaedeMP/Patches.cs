@@ -59,7 +59,7 @@ namespace EliminatorKaedeMP
 			if (player == null)
 				return true;
 			player.LateUpdate();
-			return true;
+			return false;
         }
 
 		// PlayerAct_00 ----------------------------------------------------------------

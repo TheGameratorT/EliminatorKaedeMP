@@ -547,8 +547,6 @@ namespace EliminatorKaedeMP
         public void OnJumpData(int jumpType)
         {
 			PlayerControl player = PlayerCtrl;
-			
-			Plugin.Log("Player: " + ID + " | JumpType: " + jumpType);
 
 			if (jumpType == 0)
 				return;
@@ -593,8 +591,6 @@ namespace EliminatorKaedeMP
 		// Client - Sends the jump data to the server (only the local player should run this)
         private void SendJumpData(int jumpType)
         {
-			Plugin.Log("SendJumpData(" + jumpType + ")");
-
 			if (GameNet.IsServer)
 			{
 				// If we are a server, there is not point in sending the data to ourselves, just send it to the other clients
@@ -709,10 +705,151 @@ namespace EliminatorKaedeMP
 		// Server + Client - Replacement for PlayerControl.LateUpdate
 		public void LateUpdate()
 		{
-			if (PlayerCtrl == GameNet.GetLocalPlayer())
+			PlayerControl player = PlayerCtrl;
+
+			if (player != GameNet.GetLocalPlayer() || !player.AFGet<bool>("player_ini") || Time.timeScale <= 0f)
 				return;
+			
+			PlayerPref pref = player.AFGet<PlayerPref>("Perf");
+			Player_Helth health = player.AFGet<Player_Helth>("Helth");
+			Player_Equipment equipment = player.AFGet<Player_Equipment>("Player_Equipment");
+			Player_Config_manager keyInput = player.AFGet<Player_Config_manager>("KeyInput");
+			PlayerAct_00 playerAct00 = player.AFGet<PlayerAct_00>("PlayerAct");
+			Animator anim = player.AFGet<Animator>("anim");
 
+			if (player.PlayerState == PlayerControl.State.Playable)
+			{
+				if (pref.isMain || pref.isSub)
+				{
+					bool aim = false;
+					if (equipment.E_state == Player_Equipment.State.None)
+					{
+						if (health.Sick < player.Sick_thredhold)
+							aim = Input.GetKey(keyInput.WeponHold);
+					}
+					player.AFSet("aim", aim);
+				}
+				
+				bool input_h, input_v;
+				float float_h, float_v;
+				if (health.Sick >= player.Sick_thredhold && player.IsCrouch())
+				{
+					input_h = false;
+					input_v = false;
+					float_h = 0f;
+					float_v = 0f;
+				}
+				else
+				{
+					float slopeSpeed = (float) player.AMCall("SlopeSpeed").Invoke(player, null);
+					input_h = Input.GetButton("Horizontal");
+					input_v = Input.GetButton("Vertical");
+					float_h = Input.GetAxis("Horizontal") * slopeSpeed;
+					float_v = Input.GetAxis("Vertical") * slopeSpeed;
+				}
+				player.AFSet("input_h", input_h);
+				player.AFSet("input_v", input_v);
+				player.AFSet("float_h", float_h);
+				player.AFSet("float_v", float_v);
 
+				if (player.IsAiming())
+				{
+					if (Input.GetKeyDown(keyInput.FirestPersonView))
+						player.AMCall(player.AFGet<bool>("FPV") ? "SetTPS" : "SetFPV").Invoke(player, null);
+				}
+				else
+				{
+					player.AMCall("SetTPS").Invoke(player, null);
+				}
+				if (player.AFGet<bool>("FPV") && anim.GetBool(Animator.StringToHash("NearWall")) &&
+					(bool) player.AMCall("IsSniper").Invoke(player, null) && pref.isMain)
+				{
+					player.AMCall("SetTPS").Invoke(player, null);
+				}
+
+				if (playerAct00.RELOAD_STEP == PlayerAct_00.ReloadState.None &&
+					health.Sick < player.Sick_thredhold &&
+					player.PlayerState == PlayerControl.State.Playable)
+				{
+					float mouseWheel = Input.GetAxis("Mouse ScrollWheel");
+					player.AFSet("MouseWheel", mouseWheel);
+					if (!player.IsAiming())
+					{
+						if (mouseWheel < 0f || Input.GetKeyDown(keyInput.ChangeSubWepon))
+						{
+							if (pref.isMain)
+							{
+								equipment.switchWepon = true;
+								player.AMCall("ChangeEquipment").Invoke(player, new object[]{ 0 });
+							}
+							else
+							{
+								player.AMCall("ChangeEquipment").Invoke(player, new object[]{ 1 });
+							}
+						}
+						if (mouseWheel > 0f || Input.GetKeyDown(keyInput.ChangeMainWepon))
+						{
+							if (pref.isSub)
+							{
+								equipment.switchWepon = true;
+								player.AMCall("ChangeEquipment").Invoke(player, new object[]{ 1 });
+							}
+							else
+							{
+								player.AMCall("ChangeEquipment").Invoke(player, new object[]{ 0 });
+							}
+						}
+					}
+				}
+
+				bool crouchHandler = Input.GetKeyDown(keyInput.Crouch);
+				player.AFSet("crouchHandler", crouchHandler);
+				anim.SetBool("Aim", player.IsAiming());
+				anim.SetBool("Crouch", player.IsCrouch());
+				anim.SetFloat("H", float_h);
+				anim.SetFloat("V", float_v);
+				for (int i = 0; i < pref.SyncAnimator.Length; i++)
+				{
+					pref.SyncAnimator[i].SetBool("Aim", player.IsAiming());
+					pref.SyncAnimator[i].SetBool("Crouch", player.IsCrouch());
+					pref.SyncAnimator[i].SetFloat("H", float_h);
+					pref.SyncAnimator[i].SetFloat("V", float_v);
+				}
+
+				if (player.IsCrouch())
+				{
+					anim.SetFloat("CrouchFloat", 1f, 0.1f, Time.deltaTime);
+					for (int j = 0; j < pref.SyncAnimator.Length; j++)
+						pref.SyncAnimator[j].SetFloat("CrouchFloat", 1f, 0.1f, Time.deltaTime);
+				}
+				else
+				{
+					anim.SetFloat("CrouchFloat", 0f, 0.1f, Time.deltaTime);
+					for (int k = 0; k < pref.SyncAnimator.Length; k++)
+						pref.SyncAnimator[k].SetFloat("CrouchFloat", 0f, 0.1f, Time.deltaTime);
+				}
+
+				if (crouchHandler)
+				{
+					if (player.IsGrounded())
+						player.AFSet("crouch", !player.IsCrouch());
+					player.AFSet("crouchHandler", false);
+				}
+
+				player.AMCall("MovementManagement", new System.Type[]{ typeof(float), typeof(float), typeof(bool), typeof(bool) })
+					.Invoke(player, new object[]{ float_h, float_v, player.AFGet<bool>("run"), player.AFGet<bool>("sprint") });
+
+				JumpManagement();
+
+				anim.SetFloat("input_sum", Mathf.Clamp01(Mathf.Abs(float_h) + Mathf.Abs(float_v)));
+				for (int l = 0; l < pref.SyncAnimator.Length; l++)
+					pref.SyncAnimator[l].SetFloat("input_sum", Mathf.Clamp01(Mathf.Abs(float_h) + Mathf.Abs(float_v)));
+			}
+			else
+			{
+				player.AFSet("aim", false);
+			}
+			player.AMCall("CheckGroundStatus").Invoke(player, null);
 		}
     }
 }
