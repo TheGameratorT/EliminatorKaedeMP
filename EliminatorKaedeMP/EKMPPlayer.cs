@@ -12,7 +12,7 @@ namespace EliminatorKaedeMP
 {
 	// This is our multiplayer handle for the player
 	public class EKMPPlayer
-    {
+	{
 		public enum CtrlKey
 		{
 			Aim,
@@ -20,136 +20,136 @@ namespace EliminatorKaedeMP
 		}
 
 		public static bool IsNetPlayerCtx = false;
-		
-        public uint ID;
-        public NetClient Client = null;
-        public string Name;
-        public PlayerControl PlayerCtrl = null;
+
+		public uint ID;
+		public NetClient Client = null;
+		public string Name;
+		public PlayerControl PlayerCtrl = null;
 
 		private RectTransform nicknameCanvasRect = null; // This will only exist for other players, not for ours
 		private bool netCtrl_isAiming = false; // For the local player this acts as a last state, like wasAimingInLastFrame
 		private bool netCtrl_isCrouching = false; // For the local player this acts as a last state, like wasCrouchingInLastFrame
 
-        // Server - This function is called on the player that sent the packet
-        public void OnPacketReceived(byte[] bytes)
-        {
-            try
-            {
-                using MemoryStream stream = new MemoryStream(bytes);
-                using BinaryReader reader = new BinaryReader(stream);
+		// Server - This function is called on the player that sent the packet
+		public void OnPacketReceived(byte[] bytes)
+		{
+			try
+			{
+				using MemoryStream stream = new MemoryStream(bytes);
+				using BinaryReader reader = new BinaryReader(stream);
 
-                C2SPacketID packetID = (C2SPacketID) reader.ReadInt32();
-                switch (packetID)
-                {
-                case C2SPacketID.PlayerMove:
-                {
+				C2SPacketID packetID = (C2SPacketID)reader.ReadInt32();
+				switch (packetID)
+				{
+				case C2SPacketID.PlayerMove:
+				{
 					stream.Position = 4;
-					PlayerMoveData playerMoveData = (PlayerMoveData) Utils.Deserialize(stream);
+					PlayerMoveData playerMoveData = (PlayerMoveData)Utils.Deserialize(stream);
 					BroadcastMoveData(playerMoveData);
-                    Plugin.CallOnMainThread(() => OnMoveData(playerMoveData));
-                    break;
-                }
-                case C2SPacketID.PlayerJump:
-                {
+					Plugin.CallOnMainThread(() => OnMoveData(playerMoveData));
+					break;
+				}
+				case C2SPacketID.PlayerJump:
+				{
 					int jumpType = reader.ReadInt32();
 					BroadcastJumpData(jumpType);
-                    Plugin.CallOnMainThread(() => OnJumpData(jumpType));
-                    break;
-                }
-                case C2SPacketID.PlayerCtrlKey:
-                {
-					CtrlKey key = (CtrlKey) reader.ReadInt32();
+					Plugin.CallOnMainThread(() => OnJumpData(jumpType));
+					break;
+				}
+				case C2SPacketID.PlayerCtrlKey:
+				{
+					CtrlKey key = (CtrlKey)reader.ReadInt32();
 					bool isDown = reader.ReadInt32() != 0 ? true : false;
 					BroadcastControlData(key, isDown);
-                    Plugin.CallOnMainThread(() => OnControlData(key, isDown));
-                    break;
-                }
-                /*case C2SPacketID.PlayerCrouch:
+					Plugin.CallOnMainThread(() => OnControlData(key, isDown));
+					break;
+				}
+				/*case C2SPacketID.PlayerCrouch:
                 {
 					bool crouching = reader.ReadBoolean();
                     Plugin.CallOnMainThread(() => SetCrouching(crouching));
                     break;
                 }*/
-                default:
-                    break;
-                }
-            }
-            catch (Exception ex)
-            {
-                Plugin.Log(ex);
-            }
-        }
-		
+				default:
+					break;
+				}
+			}
+			catch (Exception ex)
+			{
+				Plugin.Log(ex);
+			}
+		}
+
 		// Server + Client
-        public void OnJoin()
-        {
-            GameNet.Players.Add(this);
+		public void OnJoin()
+		{
+			GameNet.Players.Add(this);
 
-            Plugin.Log(Name + " has joined!");
-            
-            if (GameNet.IsServer)
-            {
-                GameNet.Server.NotifyPlayerJoined(this); // This is sent to everyone, except the player who joined
+			Plugin.Log(Name + " has joined!");
 
-                // This is sent to the player who joined, unless that player is also the server
-                GameJoinInfoData joinData;
-                joinData.PlayerID = ID;
-                joinData.PlayerInfos = new List<PlayerInfoData>();
-                foreach (EKMPPlayer mpPlayer in GameNet.Players)
-                {
-                    PlayerInfoData playerInfo;
-                    playerInfo.ID = mpPlayer.ID;
-                    playerInfo.Name = mpPlayer.Name;
-                    joinData.PlayerInfos.Add(playerInfo);
-                }
+			if (GameNet.IsServer)
+			{
+				GameNet.Server.NotifyPlayerJoined(this); // This is sent to everyone, except the player who joined
+
+				// This is sent to the player who joined, unless that player is also the server
+				GameJoinInfoData joinData;
+				joinData.PlayerID = ID;
+				joinData.PlayerInfos = new List<PlayerInfoData>();
+				foreach (EKMPPlayer mpPlayer in GameNet.Players)
+				{
+					PlayerInfoData playerInfo;
+					playerInfo.ID = mpPlayer.ID;
+					playerInfo.Name = mpPlayer.Name;
+					joinData.PlayerInfos.Add(playerInfo);
+				}
 				byte[] bytes;
 				using (MemoryStream stream = new MemoryStream())
 				{
 					using (BinaryWriter writer = new BinaryWriter(stream))
 					{
-						writer.Write((int) S2CPacketID.GameJoinInfo);
+						writer.Write((int)S2CPacketID.GameJoinInfo);
 						Utils.Serialize(writer, joinData);
 					}
 					bytes = stream.ToArray();
 				}
 				Client.SendPacket(bytes);
-            }
-        }
+			}
+		}
 
 		// Server + Client
-        public void OnDisconnect()
-        {
-            GameNet.Players.Remove(this);
-            if (PlayerCtrl != null)
-                UnityEngine.Object.Destroy(PlayerCtrl.gameObject);
+		public void OnDisconnect()
+		{
+			GameNet.Players.Remove(this);
+			if (PlayerCtrl != null)
+				UnityEngine.Object.Destroy(PlayerCtrl.gameObject);
 
-            Plugin.Log(Name + " has left!");
+			Plugin.Log(Name + " has left!");
 
-            if (GameNet.IsServer)
-            {
-                byte[] bytes = new byte[8];
-                Utils.WriteInt(bytes, 0, (int) S2CPacketID.PlayerLeave);
-                Utils.WriteInt(bytes, 4, (int) ID);
-                GameNet.Server.BroadcastPacket(bytes);
-            }
-        }
-		
-        // Server - Similar to GameServer.BroadcastPacket but doesn't send the packet to this player instance's client
+			if (GameNet.IsServer)
+			{
+				byte[] bytes = new byte[8];
+				Utils.WriteInt(bytes, 0, (int)S2CPacketID.PlayerLeave);
+				Utils.WriteInt(bytes, 4, (int)ID);
+				GameNet.Server.BroadcastPacket(bytes);
+			}
+		}
+
+		// Server - Similar to GameServer.BroadcastPacket but doesn't send the packet to this player instance's client
 		public void BroadcastPacketExcludingSelf(byte[] bytes)
-        {
-            foreach (EKMPPlayer player in GameNet.Players)
-            {
-                if (player.ID != GameNet.Player.ID && player != this)
-                    player.Client.SendPacket(bytes);
-            }
-        }
-		
+		{
+			foreach (EKMPPlayer player in GameNet.Players)
+			{
+				if (player.ID != GameNet.Player.ID && player != this)
+					player.Client.SendPacket(bytes);
+			}
+		}
+
 		// Server + Client - Runs when movement data is received
-        public void OnMoveData(PlayerMoveData moveData)
-        {
+		public void OnMoveData(PlayerMoveData moveData)
+		{
 			PlayerCtrl.transform.position = moveData.GetPlayerPos();
 			PlayerCtrl.transform.rotation = moveData.GetPlayerRot();
-        }
+		}
 
 		// Server - Sends the movement data of a player to the other clients
 		private void BroadcastMoveData(PlayerMoveData moveData)
@@ -159,7 +159,7 @@ namespace EliminatorKaedeMP
 			{
 				using (BinaryWriter writer = new BinaryWriter(stream))
 				{
-					writer.Write((int) S2CPacketID.PlayerMove);
+					writer.Write((int)S2CPacketID.PlayerMove);
 					writer.Write(ID);
 					Utils.Serialize(writer, moveData);
 				}
@@ -169,8 +169,8 @@ namespace EliminatorKaedeMP
 		}
 
 		// Client - Sends the movement data to the server (only the local player should run this)
-        private void SendMoveData()
-        {
+		private void SendMoveData()
+		{
 			PlayerMoveData moveData = new PlayerMoveData();
 			moveData.SetPlayerPos(PlayerCtrl.transform.position);
 			moveData.SetPlayerRot(PlayerCtrl.transform.rotation);
@@ -187,13 +187,13 @@ namespace EliminatorKaedeMP
 				{
 					using (BinaryWriter writer = new BinaryWriter(stream))
 					{
-						writer.Write((int) C2SPacketID.PlayerMove);
+						writer.Write((int)C2SPacketID.PlayerMove);
 						Utils.Serialize(writer, moveData);
 					}
 					Client.SendPacket(stream.ToArray());
 				}
 			}
-        }
+		}
 
 		// Client - Extension of PlayerControl.Update, runs after
 		public void Update()
@@ -226,55 +226,55 @@ namespace EliminatorKaedeMP
 			}
 		}
 
-        // Server + Client - Tries to create a player if in game
-        public PlayerControl TryInstantiateNetPlayer()
-        {
-            if (!Utils.IsInGame())
-                return null;
-            PlayerControl player = GameNet.GetLocalPlayer();
-            if (player == null)
-                return null;
+		// Server + Client - Tries to create a player if in game
+		public PlayerControl TryInstantiateNetPlayer()
+		{
+			if (!Utils.IsInGame())
+				return null;
+			PlayerControl player = GameNet.GetLocalPlayer();
+			if (player == null)
+				return null;
 
 			IsNetPlayerCtx = true;
-            PlayerControl newPlayer = UnityEngine.Object.Instantiate(player.gameObject).GetComponent<PlayerControl>();
-            try
-            {
-                InitializeNetPlayer(newPlayer);
-            }
-            catch (Exception ex)
-            {
-                Plugin.Log(ex);
-            }
+			PlayerControl newPlayer = UnityEngine.Object.Instantiate(player.gameObject).GetComponent<PlayerControl>();
+			try
+			{
+				InitializeNetPlayer(newPlayer);
+			}
+			catch (Exception ex)
+			{
+				Plugin.Log(ex);
+			}
 			IsNetPlayerCtx = false;
 
 			PlayerCtrl = newPlayer;
-            return newPlayer;
-        }
+			return newPlayer;
+		}
 
-        // Server + Client - Initializes the player in a way that allows for it to be controlled by our network manager
-        public void InitializeNetPlayer(PlayerControl player)
-        {
-            // Custom recreation of PlayerControl.InitializePlayerControl
+		// Server + Client - Initializes the player in a way that allows for it to be controlled by our network manager
+		public void InitializeNetPlayer(PlayerControl player)
+		{
+			// Custom recreation of PlayerControl.InitializePlayerControl
 
 			Player_Equipment playerEquipment = player.GetComponent<Player_Equipment>();
 			PlayerAct_00 playerAct00 = player.GetComponent<PlayerAct_00>();
 			PlayerAct_01 playerAct01 = player.GetComponent<PlayerAct_01>();
-            Rigidbody rigidbody = player.GetComponent<Rigidbody>();
-            CapsuleCollider capsule = player.GetComponent<CapsuleCollider>();
+			Rigidbody rigidbody = player.GetComponent<Rigidbody>();
+			CapsuleCollider capsule = player.GetComponent<CapsuleCollider>();
 
 			// Because the player had this on, we must disable it on the clone before re-initializing otherwise
 			// creating a PlayerPref will fail because SetPlayerCharacter will try to call changeWeponID before it can.
 			playerEquipment.initialize = false;
 
 			PlayerPref playerPref = CreateNetPlayerPref(player);
-            Player_DecalManager decal = Player_DecalManager.Instance;
-            Player_Config_manager keyInput = Player_Config_manager.Instance;
-            PlayerSound_Manager sound = PlayerSound_Manager.Instance;
-            Player_EffectManager effect = Player_EffectManager.Instance;
-            
-            rigidbody.constraints = RigidbodyConstraints.FreezeRotation;
-            rigidbody.isKinematic = false;
-            capsule.enabled = true;
+			Player_DecalManager decal = Player_DecalManager.Instance;
+			Player_Config_manager keyInput = Player_Config_manager.Instance;
+			PlayerSound_Manager sound = PlayerSound_Manager.Instance;
+			Player_EffectManager effect = Player_EffectManager.Instance;
+
+			rigidbody.constraints = RigidbodyConstraints.FreezeRotation;
+			rigidbody.isKinematic = false;
+			capsule.enabled = true;
 
 			PhysicMaterial zeroFrictionMaterial = new PhysicMaterial();
 			zeroFrictionMaterial.dynamicFriction = 0f;
@@ -282,17 +282,17 @@ namespace EliminatorKaedeMP
 			zeroFrictionMaterial.frictionCombine = PhysicMaterialCombine.Minimum;
 			zeroFrictionMaterial.bounciness = 0f;
 			zeroFrictionMaterial.bounceCombine = PhysicMaterialCombine.Minimum;
-            
+
 			PhysicMaterial highFrictionMaterial = new PhysicMaterial();
 			highFrictionMaterial.dynamicFriction = 0f;
 			highFrictionMaterial.staticFriction = 1f;
 			highFrictionMaterial.bounciness = 0f;
 
-            GrounderFBBIK[] GroundIK_list = new GrounderFBBIK[playerPref.SyncAnimator.Length];
+			GrounderFBBIK[] GroundIK_list = new GrounderFBBIK[playerPref.SyncAnimator.Length];
 			for (int i = 0; i < playerPref.SyncAnimator.Length; i++)
 				GroundIK_list[i] = playerPref.SyncAnimator[i].gameObject.GetComponent<GrounderFBBIK>();
 
-            player.AFSet("Perf", playerPref);
+			player.AFSet("Perf", playerPref);
 			player.AFSet("Decal", decal);
 			player.AFSet("KeyInput", keyInput);
 			player.AFSet("Sound", sound);
@@ -313,15 +313,15 @@ namespace EliminatorKaedeMP
 			player.Gimic = PlayerControl.StageGimic.NULL;
 			player.FPV_target = null;
 			player.AFSet("GroundIK_list", GroundIK_list);
-            InitializePlayerEquipment(playerEquipment, playerPref);
-            InitializePlayerAct00(player);
+			InitializePlayerEquipment(playerEquipment, playerPref);
+			InitializePlayerAct00(player);
 			InitializePlayerAct01(playerAct01, playerPref, keyInput);
 			sound.PlayerSound_ini("AudioPosition");
 			player.AFSet("player_ini", true);
 			player.AFSet("downforce_store", player.DownForce);
 			player.obstacleRaycastStart = player.gameObject.transform.FindDeep("DEMO_Pelvis", false);
 			player.AFSet("FPS_CAM_Target", GameObject.Find("FPS_cam_target"));
-			
+
 			Player_FootSoundControler playerFootSoundControler = player.GetComponent<Player_FootSoundControler>();
 			playerFootSoundControler.AFSet("Pref", playerPref);
 			playerFootSoundControler.AFSet("Sound", PlayerSound_Manager.Instance);
@@ -339,7 +339,7 @@ namespace EliminatorKaedeMP
 
 			GameObject nicknameCanvasObj = new GameObject("NicknameCanvas");
 			Canvas nicknameCanvas = nicknameCanvasObj.AddComponent<Canvas>();
-			nicknameCanvasRect = (RectTransform) nicknameCanvasObj.transform;
+			nicknameCanvasRect = (RectTransform)nicknameCanvasObj.transform;
 			nicknameCanvas.renderMode = RenderMode.WorldSpace;
 			nicknameCanvasRect.SetParent(playerHeadTransform);
 			nicknameCanvasRect.localPosition = new Vector3(0.0f, 0.28f, 0.0f);
@@ -351,7 +351,7 @@ namespace EliminatorKaedeMP
 			GameObject nicknameTextObj = new GameObject("NicknameText");
 			Text nicknameText = nicknameTextObj.AddComponent<Text>();
 			nicknameTextObj.AddComponent<Outline>();
-			RectTransform nicknameTextRect = (RectTransform) nicknameTextObj.transform;
+			RectTransform nicknameTextRect = (RectTransform)nicknameTextObj.transform;
 			nicknameText.text = Name;
 			nicknameText.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
 			nicknameText.fontSize = 30;
@@ -362,7 +362,7 @@ namespace EliminatorKaedeMP
 			nicknameTextRect.localScale = new Vector3(-1.0f, 1.0f, 1.0f);
 			nicknameTextRect.pivot = new Vector2(0.5f, 0.5f);
 			nicknameTextRect.sizeDelta = new Vector2(350.0f, 40.0f);
-        }
+		}
 
 		// Server + Client
 		private PlayerPref CreateNetPlayerPref(PlayerControl player)
@@ -385,11 +385,11 @@ namespace EliminatorKaedeMP
 			playerPrefObj.AddComponent<UI_weponIcon>();
 			return playerPref;
 		}
-		
+
 		// Server + Client
-        private static void InitializePlayerEquipment(Player_Equipment playerEquipment, PlayerPref playerPref)
-        {
-            playerEquipment.AFSet("Perf", playerPref);
+		private static void InitializePlayerEquipment(Player_Equipment playerEquipment, PlayerPref playerPref)
+		{
+			playerEquipment.AFSet("Perf", playerPref);
 			playerEquipment.AFSet("Sound", PlayerSound_Manager.Instance);
 			playerEquipment.AFSet("anim", playerEquipment.GetComponent<Animator>());
 			playerEquipment.AFSet("_LimbIK", playerEquipment.GetComponent<LimbIK>());
@@ -397,13 +397,13 @@ namespace EliminatorKaedeMP
 			playerPref.isMain = true;
 			playerEquipment.setWepon(0);
 			playerEquipment.setWepon(1);
-            playerEquipment.AFSet("weponIcon", playerPref.gameObject.GetComponent<UI_weponIcon>());
+			playerEquipment.AFSet("weponIcon", playerPref.gameObject.GetComponent<UI_weponIcon>());
 			playerEquipment.initialize = true;
-        }
-		
+		}
+
 		// Server + Client
-        public static void InitializePlayerAct00(PlayerControl player)
-        {
+		public static void InitializePlayerAct00(PlayerControl player)
+		{
 			PlayerAct_00 playerAct00 = player.GetComponent<PlayerAct_00>();
 			PlayerPref playerPref = player.AFGet<PlayerPref>("Perf");
 
@@ -441,9 +441,7 @@ namespace EliminatorKaedeMP
 			AimIK[] AimIKs = new AimIK[playerPref.SyncAnimator.Length];
 			playerAct00.AFSet("AimIKs", AimIKs);
 			for (int i = 0; i < playerPref.SyncAnimator.Length; i++)
-			{
 				AimIKs[i] = playerPref.SyncAnimator[i].gameObject.GetComponent<AimIK>();
-			}
 
 			if (playerPref.isMain)
 			{
@@ -484,8 +482,8 @@ namespace EliminatorKaedeMP
 			playerAct00.AFSet("cameraTransform", playerPref.MainCamera.transform);
 			playerAct00.player_ini = true;
 			playerAct00.RELOAD_STEP = PlayerAct_00.ReloadState.None;
-        }
-		
+		}
+
 		// Server + Client
 		private static void InitializePlayerAct01(PlayerAct_01 playerAct01, PlayerPref playerPref, Player_Config_manager keyInput)
 		{
@@ -504,29 +502,29 @@ namespace EliminatorKaedeMP
 				playerPref.SyncAnimator[i].SetLayerWeight(cqb_0, 0f);
 			playerAct01.AFSet("player_ini", true);
 		}
-		
+
 		// Server + Client
 		private static void SetPlayerCharacter(PlayerPref playerPref, int characterID)
 		{
 			for (int i = 0; i < playerPref.PlayerData.Length; i++)
-            {
-                for (int j = 0; j < playerPref.PlayerData[i].PlayerData.Length; j++)
-                {
-                    playerPref.PlayerData[i].PlayerData[j].SetActive(value: false);
-                }
-            }
+			{
+				for (int j = 0; j < playerPref.PlayerData[i].PlayerData.Length; j++)
+				{
+					playerPref.PlayerData[i].PlayerData[j].SetActive(value: false);
+				}
+			}
 
-            for (int k = 0; k < playerPref.PlayerData[characterID].PlayerData.Length; k++)
-            {
-                playerPref.PlayerData[characterID].PlayerData[k].SetActive(value: true);
-            }
+			for (int k = 0; k < playerPref.PlayerData[characterID].PlayerData.Length; k++)
+			{
+				playerPref.PlayerData[characterID].PlayerData[k].SetActive(value: true);
+			}
 
-            if (playerPref.PlayerIncetance.GetComponent<Player_Equipment>().initialize)
-            {
-                playerPref.changeWeponID(playerPref.Main_weponID);
-            }
+			if (playerPref.PlayerIncetance.GetComponent<Player_Equipment>().initialize)
+			{
+				playerPref.changeWeponID(playerPref.Main_weponID);
+			}
 
-            playerPref.PlayerCharacterID = characterID;
+			playerPref.PlayerCharacterID = characterID;
 		}
 
 		private static void BeginJumpRoll(PlayerAct_00 playerAct00, PlayerPref pref, PlayerSound_Manager sound, Animator anim, string stateName)
@@ -562,13 +560,13 @@ namespace EliminatorKaedeMP
 		}
 
 		// Server + Client - Runs when jump data is received
-        public void OnJumpData(int jumpType)
-        {
+		public void OnJumpData(int jumpType)
+		{
 			PlayerControl player = PlayerCtrl;
 
 			if (jumpType == 0)
 				return;
-			
+
 			PlayerPref pref = player.AFGet<PlayerPref>("Perf");
 			PlayerAct_00 playerAct00 = player.AFGet<PlayerAct_00>("PlayerAct");
 			Animator anim = player.AFGet<Animator>("anim");
@@ -594,21 +592,21 @@ namespace EliminatorKaedeMP
 					BeginJumpType5(player, pref, anim);
 				}
 			}
-        }
+		}
 
 		// Server - Sends the jump data of a player to the other clients
 		private void BroadcastJumpData(int jumpType)
 		{
 			byte[] jumpData = new byte[sizeof(int) * 3];
-			Utils.WriteInt(jumpData, 0, (int) S2CPacketID.PlayerJump);
-			Utils.WriteInt(jumpData, 4, (int) ID);
+			Utils.WriteInt(jumpData, 0, (int)S2CPacketID.PlayerJump);
+			Utils.WriteInt(jumpData, 4, (int)ID);
 			Utils.WriteInt(jumpData, 8, jumpType);
 			BroadcastPacketExcludingSelf(jumpData);
 		}
 
 		// Client - Sends the jump data to the server (only the local player should run this)
-        private void SendJumpData(int jumpType)
-        {
+		private void SendJumpData(int jumpType)
+		{
 			if (GameNet.IsServer)
 			{
 				// If we are a server, there is not point in sending the data to ourselves, just send it to the other clients
@@ -618,11 +616,11 @@ namespace EliminatorKaedeMP
 			{
 				// But if we are a client, we must send it to the server so that it will broadcast it to other clients
 				byte[] jumpData = new byte[sizeof(int) * 2];
-				Utils.WriteInt(jumpData, 0, (int) C2SPacketID.PlayerJump);
+				Utils.WriteInt(jumpData, 0, (int)C2SPacketID.PlayerJump);
 				Utils.WriteInt(jumpData, 4, jumpType);
 				Client.SendPacket(jumpData);
 			}
-        }
+		}
 
 		// Server + Client - Replacement for PlayerControl.JumpManagement
 		public void JumpManagement()
@@ -631,7 +629,7 @@ namespace EliminatorKaedeMP
 
 			if (player != GameNet.GetLocalPlayer() || player.FlyState != PlayerControl.Fly.none)
 				return;
-			
+
 			PlayerPref pref = player.AFGet<PlayerPref>("Perf");
 			Player_Helth health = player.AFGet<Player_Helth>("Helth");
 			Player_Config_manager keyInput = player.AFGet<Player_Config_manager>("KeyInput");
@@ -692,7 +690,7 @@ namespace EliminatorKaedeMP
 						return;
 
 					EndCrouchAnim(player, pref, anim);
-					if ((bool) player.AMCall("Checkobstacle").Invoke(player, null))
+					if ((bool)player.AMCall("Checkobstacle").Invoke(player, null))
 					{
 						player.PlayerState = PlayerControl.State.Obstacle_s;
 					}
@@ -718,7 +716,7 @@ namespace EliminatorKaedeMP
 		}
 
 		// Server + Client - Runs when control data is received
-        public void OnControlData(CtrlKey key, bool isDown)
+		public void OnControlData(CtrlKey key, bool isDown)
 		{
 			switch (key)
 			{
@@ -735,16 +733,16 @@ namespace EliminatorKaedeMP
 		private void BroadcastControlData(CtrlKey key, bool isDown)
 		{
 			byte[] jumpData = new byte[sizeof(int) * 4];
-			Utils.WriteInt(jumpData, 0, (int) S2CPacketID.PlayerCtrlKey);
-			Utils.WriteInt(jumpData, 4, (int) ID);
-			Utils.WriteInt(jumpData, 8, (int) key);
+			Utils.WriteInt(jumpData, 0, (int)S2CPacketID.PlayerCtrlKey);
+			Utils.WriteInt(jumpData, 4, (int)ID);
+			Utils.WriteInt(jumpData, 8, (int)key);
 			Utils.WriteInt(jumpData, 12, isDown ? 1 : 0);
 			BroadcastPacketExcludingSelf(jumpData);
 		}
 
 		// Client - Sends the key data to the server (only the local player should run this)
-        private void SendControlData(CtrlKey key, bool isDown)
-        {
+		private void SendControlData(CtrlKey key, bool isDown)
+		{
 			if (GameNet.IsServer)
 			{
 				// If we are a server, there is not point in sending the data to ourselves, just send it to the other clients
@@ -754,12 +752,12 @@ namespace EliminatorKaedeMP
 			{
 				// But if we are a client, we must send it to the server so that it will broadcast it to other clients
 				byte[] jumpData = new byte[sizeof(int) * 3];
-				Utils.WriteInt(jumpData, 0, (int) C2SPacketID.PlayerCtrlKey);
-				Utils.WriteInt(jumpData, 4, (int) key);
+				Utils.WriteInt(jumpData, 0, (int)C2SPacketID.PlayerCtrlKey);
+				Utils.WriteInt(jumpData, 4, (int)key);
 				Utils.WriteInt(jumpData, 8, isDown ? 1 : 0);
 				Client.SendPacket(jumpData);
 			}
-        }
+		}
 
 		// Server + Client - Replacement for PlayerControl.LateUpdate
 		public void LateUpdate()
@@ -770,7 +768,7 @@ namespace EliminatorKaedeMP
 				return;
 
 			bool isLocalPlayer = player == GameNet.GetLocalPlayer();
-			
+
 			PlayerPref pref = player.AFGet<PlayerPref>("Perf");
 			Player_Helth health = player.AFGet<Player_Helth>("Helth");
 			Player_Equipment equipment = player.AFGet<Player_Equipment>("Player_Equipment");
@@ -797,7 +795,7 @@ namespace EliminatorKaedeMP
 				{
 					player.AFSet("aim", netCtrl_isAiming);
 				}
-				
+
 				bool input_h, input_v;
 				float float_h, float_v;
 				if (health.Sick >= player.Sick_thredhold && player.IsCrouch())
@@ -809,7 +807,7 @@ namespace EliminatorKaedeMP
 				}
 				else
 				{
-					float slopeSpeed = (float) player.AMCall("SlopeSpeed").Invoke(player, null);
+					float slopeSpeed = (float)player.AMCall("SlopeSpeed").Invoke(player, null);
 					if (isLocalPlayer)
 					{
 						input_h = Input.GetButton("Horizontal");
@@ -840,7 +838,7 @@ namespace EliminatorKaedeMP
 					player.AMCall("SetTPS").Invoke(player, null);
 				}
 				if (player.AFGet<bool>("FPV") && anim.GetBool(Animator.StringToHash("NearWall")) &&
-					(bool) player.AMCall("IsSniper").Invoke(player, null) && pref.isMain)
+					(bool)player.AMCall("IsSniper").Invoke(player, null) && pref.isMain)
 				{
 					player.AMCall("SetTPS").Invoke(player, null);
 				}
@@ -858,11 +856,11 @@ namespace EliminatorKaedeMP
 							if (pref.isMain)
 							{
 								equipment.switchWepon = true;
-								player.AMCall("ChangeEquipment").Invoke(player, new object[]{ 0 });
+								player.AMCall("ChangeEquipment").Invoke(player, new object[] { 0 });
 							}
 							else
 							{
-								player.AMCall("ChangeEquipment").Invoke(player, new object[]{ 1 });
+								player.AMCall("ChangeEquipment").Invoke(player, new object[] { 1 });
 							}
 						}
 						if (mouseWheel > 0f || Input.GetKeyDown(keyInput.ChangeMainWepon))
@@ -870,11 +868,11 @@ namespace EliminatorKaedeMP
 							if (pref.isSub)
 							{
 								equipment.switchWepon = true;
-								player.AMCall("ChangeEquipment").Invoke(player, new object[]{ 1 });
+								player.AMCall("ChangeEquipment").Invoke(player, new object[] { 1 });
 							}
 							else
 							{
-								player.AMCall("ChangeEquipment").Invoke(player, new object[]{ 0 });
+								player.AMCall("ChangeEquipment").Invoke(player, new object[] { 0 });
 							}
 						}
 					}
@@ -918,8 +916,8 @@ namespace EliminatorKaedeMP
 					player.AFSet("crouch", netCtrl_isCrouching);
 				}
 
-				player.AMCall("MovementManagement", new Type[]{ typeof(float), typeof(float), typeof(bool), typeof(bool) })
-					.Invoke(player, new object[]{ float_h, float_v, player.AFGet<bool>("run"), player.AFGet<bool>("sprint") });
+				player.AMCall("MovementManagement", new Type[] { typeof(float), typeof(float), typeof(bool), typeof(bool) })
+					.Invoke(player, new object[] { float_h, float_v, player.AFGet<bool>("run"), player.AFGet<bool>("sprint") });
 
 				JumpManagement();
 
@@ -933,5 +931,5 @@ namespace EliminatorKaedeMP
 			}
 			player.AMCall("CheckGroundStatus").Invoke(player, null);
 		}
-    }
+	}
 }

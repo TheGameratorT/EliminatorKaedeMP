@@ -8,7 +8,7 @@ namespace EliminatorKaedeMP
     {
         // The ID of our player
         public uint PlayerID;
-        
+
         // The information about the other players
         public List<PlayerInfoData> PlayerInfos;
     }

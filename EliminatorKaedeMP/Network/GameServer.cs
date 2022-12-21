@@ -1,8 +1,5 @@
-﻿using K_PlayerControl;
-using System.IO;
-using System.Net;
+﻿using System.IO;
 using System.Text;
-using UnityEngine;
 
 namespace EliminatorKaedeMP
 {
@@ -71,10 +68,12 @@ namespace EliminatorKaedeMP
 
                 nextPlayerID++;
 
-                netClient.OnPacketReceived = (NetClient netClient, byte[] bytes) => {
+                netClient.OnPacketReceived = (NetClient netClient, byte[] bytes) =>
+                {
                     mpPlayer.OnPacketReceived(bytes);
                 };
-                netClient.OnDisconnected = (NetClient netClient) => {
+                netClient.OnDisconnected = (NetClient netClient) =>
+                {
                     Plugin.CallOnMainThread(() => mpPlayer.OnDisconnect());
                 };
 
@@ -101,7 +100,7 @@ namespace EliminatorKaedeMP
             {
                 using (BinaryWriter writer = new BinaryWriter(stream))
                 {
-                    writer.Write((int) S2CPacketID.PlayerJoin);
+                    writer.Write((int)S2CPacketID.PlayerJoin);
                     writer.Write(playerWhoJoined.ID);
                     writer.Write(playerWhoJoined.Name);
                 }

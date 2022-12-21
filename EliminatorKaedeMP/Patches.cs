@@ -4,20 +4,20 @@ using static EliminatorKaedeMP.PatchAttr;
 
 namespace EliminatorKaedeMP
 {
-    public class Patches
-    {
+	public class Patches
+	{
 		// GameManager ----------------------------------------------------------------
 
-        [PatchAttr(typeof(GameManager), "Start", EPatchType.Postfix)]
-        static void GameManager_Start_Postfix(GameManager __instance)
-        {
-            // This function is called after the game starts
-		    GameNet.OnGameStart();
-        }
+		[PatchAttr(typeof(GameManager), "Start", EPatchType.Postfix)]
+		static void GameManager_Start_Postfix(GameManager __instance)
+		{
+			// This function is called after the game starts
+			GameNet.OnGameStart();
+		}
 
 		// PlayerPref ----------------------------------------------------------------
-        
-        [PatchAttr(typeof(PlayerPref), "Awake", EPatchType.Prefix)]
+
+		[PatchAttr(typeof(PlayerPref), "Awake", EPatchType.Prefix)]
 		static bool PlayerPref_Awake_Prefix(PlayerPref __instance)
 		{
 			// Only run if we are the local player
@@ -25,9 +25,9 @@ namespace EliminatorKaedeMP
 		}
 
 		// UI_weponIcon ----------------------------------------------------------------
-        
-        [PatchAttr(typeof(UI_weponIcon), "ChangeWepon", EPatchType.Prefix)]
-        [PatchAttr(typeof(UI_weponIcon), "UseGranade", EPatchType.Prefix)]
+
+		[PatchAttr(typeof(UI_weponIcon), "ChangeWepon", EPatchType.Prefix)]
+		[PatchAttr(typeof(UI_weponIcon), "UseGranade", EPatchType.Prefix)]
 		static bool UI_weponIcon_Prefix(UI_weponIcon __instance)
 		{
 			// Only run if we are the local player
@@ -35,43 +35,43 @@ namespace EliminatorKaedeMP
 		}
 
 		// PlayerControl ----------------------------------------------------------------
-		
-        [PatchAttr(typeof(PlayerControl), "Update", EPatchType.Postfix)]
-        static void PlayerControl_Update_Postfix(PlayerControl __instance)
-        {
-			GameNet.GetPlayer(__instance)?.Update();
-        }
 
-        [PatchAttr(typeof(PlayerControl), "JumpManagement", EPatchType.Prefix)]
-        static bool PlayerControl_JumpManagement_Prefix(PlayerControl __instance)
-        {
+		[PatchAttr(typeof(PlayerControl), "Update", EPatchType.Postfix)]
+		static void PlayerControl_Update_Postfix(PlayerControl __instance)
+		{
+			GameNet.GetPlayer(__instance)?.Update();
+		}
+
+		[PatchAttr(typeof(PlayerControl), "JumpManagement", EPatchType.Prefix)]
+		static bool PlayerControl_JumpManagement_Prefix(PlayerControl __instance)
+		{
 			EKMPPlayer player = GameNet.GetPlayer(__instance);
 			if (player == null)
 				return true;
 			player.JumpManagement();
 			return false;
-        }
+		}
 
-        [PatchAttr(typeof(PlayerControl), "LateUpdate", EPatchType.Prefix)]
-        static bool PlayerControl_LateUpdate_Prefix(PlayerControl __instance)
-        {
+		[PatchAttr(typeof(PlayerControl), "LateUpdate", EPatchType.Prefix)]
+		static bool PlayerControl_LateUpdate_Prefix(PlayerControl __instance)
+		{
 			EKMPPlayer player = GameNet.GetPlayer(__instance);
 			if (player == null)
 				return true;
 			player.LateUpdate();
 			return false;
-        }
+		}
 
 		// PlayerAct_00 ----------------------------------------------------------------
-		
-        [PatchAttr(typeof(PlayerAct_00), "Awake", EPatchType.Prefix)]
-        static bool PlayerAct_00_Awake_Prefix(PlayerAct_00 __instance)
-        {
+
+		[PatchAttr(typeof(PlayerAct_00), "Awake", EPatchType.Prefix)]
+		static bool PlayerAct_00_Awake_Prefix(PlayerAct_00 __instance)
+		{
 			// Only run if we are the local player
 			return !EKMPPlayer.IsNetPlayerCtx;
-        }
-		
-        [PatchAttr(typeof(PlayerAct_00), "Initialize", EPatchType.Prefix)]
+		}
+
+		[PatchAttr(typeof(PlayerAct_00), "Initialize", EPatchType.Prefix)]
 		static bool PlayerAct_00_Initialize_Prefix(PlayerAct_00 __instance)
 		{
 			PlayerControl player = __instance.GetComponent<PlayerControl>();
@@ -86,7 +86,7 @@ namespace EliminatorKaedeMP
 		}
 
 		// sh_001_UI_gun ----------------------------------------------------------------
-		
+
 
 
 		// ToiletEventManager ----------------------------------------------------------------
@@ -96,5 +96,5 @@ namespace EliminatorKaedeMP
 		{
 			return true;
 		}*/
-    }
+	}
 }

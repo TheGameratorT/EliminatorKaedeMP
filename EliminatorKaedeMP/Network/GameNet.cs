@@ -56,9 +56,9 @@ namespace EliminatorKaedeMP
         // Gets the multiplayer handle of a player
         public static EKMPPlayer GetPlayer(PlayerControl player)
         {
-			if (player == GetLocalPlayer())
+            if (player == GetLocalPlayer())
                 return Player;
-			return player.AFGet<EKMPPlayerPref>("Perf").MPPlayer;
+            return player.AFGet<EKMPPlayerPref>("Perf").MPPlayer;
         }
 
         // Returns true if we are a server or if we are a client connected to a server, false otherwise
