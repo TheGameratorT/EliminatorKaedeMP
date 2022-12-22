@@ -58,7 +58,7 @@ namespace EliminatorKaedeMP
         {
             if (player == GetLocalPlayer())
                 return Player;
-            return player.AFGet<EKMPPlayerPref>("Perf").MPPlayer;
+            return ((EKMPPlayerPref)player.Perf).MPPlayer;
         }
 
         // Returns true if we are a server or if we are a client connected to a server, false otherwise

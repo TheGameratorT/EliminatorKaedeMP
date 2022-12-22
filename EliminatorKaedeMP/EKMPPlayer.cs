@@ -152,10 +152,10 @@ namespace EliminatorKaedeMP
 		{
 			PlayerCtrl.transform.position = moveData.GetPlayerPos();
 			PlayerCtrl.transform.rotation = moveData.GetPlayerRot();
-			PlayerCtrl.AFSet("input_h", moveData.InputH);
-			PlayerCtrl.AFSet("input_v", moveData.InputV);
-			PlayerCtrl.AFSet("float_h", moveData.FloatH);
-			PlayerCtrl.AFSet("float_v", moveData.FloatV);
+			PlayerCtrl.input_h = moveData.InputH;
+			PlayerCtrl.input_v = moveData.InputV;
+			PlayerCtrl.float_h = moveData.FloatH;
+			PlayerCtrl.float_v = moveData.FloatV;
 		}
 
 		// Server - Sends the movement data of a player to the other clients
@@ -181,10 +181,10 @@ namespace EliminatorKaedeMP
 			PlayerMoveData moveData = new PlayerMoveData();
 			moveData.SetPlayerPos(PlayerCtrl.transform.position);
 			moveData.SetPlayerRot(PlayerCtrl.transform.rotation);
-			moveData.InputH = PlayerCtrl.AFGet<bool>("input_h");
-			moveData.InputV = PlayerCtrl.AFGet<bool>("input_v");
-			moveData.FloatH = PlayerCtrl.AFGet<float>("float_h");
-			moveData.FloatV = PlayerCtrl.AFGet<float>("float_v");
+			moveData.InputH = PlayerCtrl.input_h;
+			moveData.InputV = PlayerCtrl.input_v;
+			moveData.FloatH = PlayerCtrl.float_h;
+			moveData.FloatV = PlayerCtrl.float_v;
 
 			if (GameNet.IsServer)
 			{
@@ -308,47 +308,47 @@ namespace EliminatorKaedeMP
 			for (int i = 0; i < playerPref.SyncAnimator.Length; i++)
 				GroundIK_list[i] = playerPref.SyncAnimator[i].gameObject.GetComponent<GrounderFBBIK>();
 
-			player.AFSet("Perf", playerPref);
-			player.AFSet("Decal", decal);
-			player.AFSet("KeyInput", keyInput);
-			player.AFSet("Sound", sound);
-			player.AFSet("Effect", effect);
-			player.AFSet("anim", player.GetComponent<Animator>());
-			player.AFSet("Helth", player.GetComponent<Player_Helth>());
-			player.AFSet("Player_Equipment", playerEquipment);
-			player.AFSet("PlayerAct", playerAct00);
-			player.AFSet("PlayerAct01", playerAct01);
-			player.AFSet("cameraTransform", playerPref.MainCamera.transform);
-			player.AFSet("Buffer_FOV", playerPref.MainCamera.GetComponent<Camera>().fieldOfView);
-			player.AFSet("m_Rigidbody", rigidbody);
-			player.AFSet("Capsule", capsule);
-			player.AFSet("zeroFrictionMaterial", zeroFrictionMaterial);
-			player.AFSet("highFrictionMaterial", highFrictionMaterial);
+			player.Perf = playerPref;
+			player.Decal = decal;
+			player.KeyInput = keyInput;
+			player.Sound = sound;
+			player.Effect = effect;
+			player.anim = player.GetComponent<Animator>();
+			player.Helth = player.GetComponent<Player_Helth>();
+			player.Player_Equipment = playerEquipment;
+			player.PlayerAct = playerAct00;
+			player.PlayerAct01 = playerAct01;
+			player.cameraTransform = playerPref.MainCamera.transform;
+			player.Buffer_FOV = playerPref.MainCamera.GetComponent<Camera>().fieldOfView;
+			player.m_Rigidbody = rigidbody;
+			player.Capsule = capsule;
+			player.zeroFrictionMaterial = zeroFrictionMaterial;
+			player.highFrictionMaterial = highFrictionMaterial;
 			player.PlayerState = PlayerControl.State.Playable;
 			player.FlyState = PlayerControl.Fly.none;
 			player.Gimic = PlayerControl.StageGimic.NULL;
 			player.FPV_target = null;
-			player.AFSet("GroundIK_list", GroundIK_list);
+			player.GroundIK_list = GroundIK_list;
 			InitializePlayerEquipment(playerEquipment, playerPref);
 			InitializePlayerAct00(player);
 			InitializePlayerAct01(playerAct01, playerPref, keyInput);
 			sound.PlayerSound_ini("AudioPosition");
-			player.AFSet("player_ini", true);
-			player.AFSet("downforce_store", player.DownForce);
+			player.player_ini = true;
+			player.downforce_store = player.DownForce;
 			player.obstacleRaycastStart = player.gameObject.transform.FindDeep("DEMO_Pelvis", false);
-			player.AFSet("FPS_CAM_Target", GameObject.Find("FPS_cam_target"));
+			player.FPS_CAM_Target = GameObject.Find("FPS_cam_target");
 
 			Player_FootSoundControler playerFootSoundControler = player.GetComponent<Player_FootSoundControler>();
-			playerFootSoundControler.AFSet("Pref", playerPref);
-			playerFootSoundControler.AFSet("Sound", PlayerSound_Manager.Instance);
-			playerFootSoundControler.AFSet("anim", player.GetComponent<Animator>());
+			playerFootSoundControler.Pref = playerPref;
+			playerFootSoundControler.Sound = PlayerSound_Manager.Instance;
+			playerFootSoundControler.anim = player.GetComponent<Animator>();
 
 			Player_FootSound[] playerFootSounds = player.GetComponentsInChildren<Player_FootSound>();
 			foreach (Player_FootSound playerFootSound in playerFootSounds)
 			{
-				playerFootSound.AFSet("Pref", playerPref);
-				playerFootSound.AFSet("PlayerObject", player.gameObject);
-				playerFootSound.AFSet("FootSoundCtrl", playerFootSoundControler);
+				playerFootSound.Pref = playerPref;
+				playerFootSound.PlayerObject = player.gameObject;
+				playerFootSound.FootSoundCtrl = playerFootSoundControler;
 			}
 
 			Transform playerHeadTransform = player.gameObject.transform.Find("Root/DEMO_Pelvis/DEMO_Spine/DEMO_Spine1/Spine_1_5/DEMO_Spine2/DEMO_Spine3/DEMO_Neck/DEMO_Neck2/DEMO_Head");
@@ -405,15 +405,15 @@ namespace EliminatorKaedeMP
 		// Server + Client
 		private static void InitializePlayerEquipment(Player_Equipment playerEquipment, PlayerPref playerPref)
 		{
-			playerEquipment.AFSet("Perf", playerPref);
-			playerEquipment.AFSet("Sound", PlayerSound_Manager.Instance);
-			playerEquipment.AFSet("anim", playerEquipment.GetComponent<Animator>());
-			playerEquipment.AFSet("_LimbIK", playerEquipment.GetComponent<LimbIK>());
-			playerEquipment.AFSet("Act", playerEquipment.GetComponent<PlayerAct_00>());
+			playerEquipment.Perf = playerPref;
+			playerEquipment.Sound = PlayerSound_Manager.Instance;
+			playerEquipment.anim = playerEquipment.GetComponent<Animator>();
+			playerEquipment._LimbIK = playerEquipment.GetComponent<LimbIK>();
+			playerEquipment.Act = playerEquipment.GetComponent<PlayerAct_00>();
 			playerPref.isMain = true;
 			playerEquipment.setWepon(0);
 			playerEquipment.setWepon(1);
-			playerEquipment.AFSet("weponIcon", playerPref.gameObject.GetComponent<UI_weponIcon>());
+			playerEquipment.weponIcon = playerPref.gameObject.GetComponent<UI_weponIcon>();
 			playerEquipment.initialize = true;
 		}
 
@@ -421,81 +421,80 @@ namespace EliminatorKaedeMP
 		public static void InitializePlayerAct00(PlayerControl player)
 		{
 			PlayerAct_00 playerAct00 = player.GetComponent<PlayerAct_00>();
-			PlayerPref playerPref = player.AFGet<PlayerPref>("Perf");
+			PlayerPref playerPref = player.Perf;
 
 			PlayerAct_00 ogPlayerAct00 = GameNet.GetLocalPlayer().GetComponent<PlayerAct_00>();
-			playerAct00.AFSet("config", ogPlayerAct00.AFGet<ThirdPersonConfig>("config"));
-			playerAct00.AFSet("fvp_config", ogPlayerAct00.AFGet<FPSConfig>("fvp_config"));
-			playerAct00.AFSet("config_col", ogPlayerAct00.AFGet<CollisionConfig>("config_col"));
-			playerAct00.AFSet("wepon_prefab", ogPlayerAct00.AFGet<GameObject>("wepon_prefab"));
+			playerAct00.config = ogPlayerAct00.config;
+			playerAct00.fvp_config = ogPlayerAct00.fvp_config;
+			playerAct00.config_col = ogPlayerAct00.config_col;
+			playerAct00.wepon_prefab = ogPlayerAct00.wepon_prefab;
 
-			playerAct00.AFSet("KeyInput", player.AFGet<Player_Config_manager>("KeyInput"));
-			playerAct00.AFSet("Sound", PlayerSound_Manager.Instance);
-			playerAct00.AFSet("Perf", playerPref);
-			playerAct00.AFSet("UI", UI_Interactive.Instance);
-			playerAct00.AFSet("PE", playerAct00.GetComponent<Player_Equipment>());
-			playerAct00.AFSet("p_Granade", playerAct00.GetComponent<Player_Granade>());
-			playerAct00.AFSet("weponIcon", playerPref.GetComponent<UI_weponIcon>());
-			playerAct00.AFSet("_AimIK", playerAct00.GetComponent<AimIK>());
-			playerAct00.AFSet("m_rigidBody", playerAct00.GetComponent<Rigidbody>());
+			playerAct00.KeyInput = player.KeyInput;
+			playerAct00.Sound = PlayerSound_Manager.Instance;
+			playerAct00.Perf = playerPref;
+			playerAct00.UI = UI_Interactive.Instance;
+			playerAct00.PE = playerAct00.GetComponent<Player_Equipment>();
+			playerAct00.p_Granade = playerAct00.GetComponent<Player_Granade>();
+			playerAct00.weponIcon = playerPref.GetComponent<UI_weponIcon>();
+			playerAct00._AimIK = playerAct00.GetComponent<AimIK>();
+			playerAct00.m_rigidBody = playerAct00.GetComponent<Rigidbody>();
 			playerAct00.player_ini = false;
-			playerAct00.AFSet("weponID", playerPref.Main_weponID);
-			playerAct00.AFSet("SubID", playerPref.Sub_weponID);
-			playerAct00.AFSet("wepon_prefab", playerPref.E_mainWepon);
-			playerAct00.AFSet("Sub_prefab", playerPref.E_SubWepon);
-			playerAct00.AFSet("a_hash_AngleV", Animator.StringToHash("angleV"));
-			playerAct00.AFSet("a_hash_AngleH", Animator.StringToHash("angleH"));
-			playerAct00.AFSet("a_shotFloat", Animator.StringToHash("ShotFloat"));
-			playerAct00.AFSet("a_SHOT", Animator.StringToHash("Shot"));
-			playerAct00.AFSet("a_RELOAD", Animator.StringToHash("Reload"));
-			playerAct00.AFSet("a_NearWall", Animator.StringToHash("NearWall"));
-			playerAct00.AFSet("a_Aim", Animator.StringToHash("Aim"));
-			playerAct00.AFSet("a_TurnFloat", Animator.StringToHash("TurnFloat"));
-			playerAct00.AFSet("a_weponid", Animator.StringToHash("WeponID"));
-			playerAct00.AFSet("a_subid", Animator.StringToHash("SubID"));
+			playerAct00.weponID = playerPref.Main_weponID;
+			playerAct00.SubID = playerPref.Sub_weponID;
+			playerAct00.wepon_prefab = playerPref.E_mainWepon;
+			playerAct00.Sub_prefab = playerPref.E_SubWepon;
+			playerAct00.a_hash_AngleV = Animator.StringToHash("angleV");
+			playerAct00.a_hash_AngleH = Animator.StringToHash("angleH");
+			playerAct00.a_shotFloat = Animator.StringToHash("ShotFloat");
+			playerAct00.a_SHOT = Animator.StringToHash("Shot");
+			playerAct00.a_RELOAD = Animator.StringToHash("Reload");
+			playerAct00.a_NearWall = Animator.StringToHash("NearWall");
+			playerAct00.a_Aim = Animator.StringToHash("Aim");
+			playerAct00.a_TurnFloat = Animator.StringToHash("TurnFloat");
+			playerAct00.a_weponid = Animator.StringToHash("WeponID");
+			playerAct00.a_subid = Animator.StringToHash("SubID");
 
 			AimIK[] AimIKs = new AimIK[playerPref.SyncAnimator.Length];
-			playerAct00.AFSet("AimIKs", AimIKs);
+			playerAct00.AimIKs = AimIKs;
 			for (int i = 0; i < playerPref.SyncAnimator.Length; i++)
 				AimIKs[i] = playerPref.SyncAnimator[i].gameObject.GetComponent<AimIK>();
 
 			if (playerPref.isMain)
 			{
-				GameObject weponPrefab = playerAct00.AFGet<GameObject>("wepon_prefab");
-				if (weponPrefab != null)
+				if (playerAct00.wepon_prefab != null)
 				{
-					playerAct00.LayerName = "Gun_act_" + playerAct00.AFGet<int>("weponID");
+					playerAct00.LayerName = "Gun_act_" + playerAct00.weponID;
 					playerAct00.ReloadComp_wep();
 				}
 				else
 				{
-					playerAct00.AFSet("Kaede_mag", null);
+					playerAct00.Kaede_mag = null;
 					playerAct00.g_anim = null;
-					Debug.Log(weponPrefab + "::: null");
+					Debug.Log(playerAct00.wepon_prefab + "::: null");
 				}
 			}
 			else if (playerPref.isSub)
 			{
-				if (playerAct00.AFGet<GameObject>("Sub_prefab") != null)
+				if (playerAct00.Sub_prefab != null)
 				{
-					playerAct00.LayerName = "Sub_act_" + playerAct00.AFGet<int>("SubID");
+					playerAct00.LayerName = "Sub_act_" + playerAct00.SubID;
 					playerAct00.ReloadComp_wep();
 				}
 				else
 				{
-					playerAct00.AFSet("Kaede_mag", null);
+					playerAct00.Kaede_mag = null;
 					playerAct00.g_anim = null;
 				}
 			}
 			else
 			{
-				playerAct00.AFSet("Kaede_mag", null);
+				playerAct00.Kaede_mag = null;
 				playerAct00.g_anim = null;
 			}
 
-			playerAct00.AFSet("PlayerControl", playerAct00.GetComponent<PlayerControl>());
+			playerAct00.PlayerControl = playerAct00.GetComponent<PlayerControl>();
 			playerAct00.anim = playerAct00.GetComponent<Animator>();
-			playerAct00.AFSet("cameraTransform", playerPref.MainCamera.transform);
+			playerAct00.cameraTransform = playerPref.MainCamera.transform;
 			playerAct00.player_ini = true;
 			playerAct00.RELOAD_STEP = PlayerAct_00.ReloadState.None;
 		}
@@ -503,20 +502,20 @@ namespace EliminatorKaedeMP
 		// Server + Client
 		private static void InitializePlayerAct01(PlayerAct_01 playerAct01, PlayerPref playerPref, Player_Config_manager keyInput)
 		{
-			playerAct01.AFSet("Perf", playerPref);
-			playerAct01.AFSet("KeyInput", keyInput);
-			playerAct01.AFSet("Sound", PlayerSound_Manager.Instance);
-			playerAct01.AFSet("playerControl", playerAct01.GetComponent<PlayerControl>());
-			playerAct01.AFSet("act", playerAct01.GetComponent<PlayerAct_00>());
+			playerAct01.Perf = playerPref;
+			playerAct01.KeyInput = keyInput;
+			playerAct01.Sound = PlayerSound_Manager.Instance;
+			playerAct01.playerControl = playerAct01.GetComponent<PlayerControl>();
+			playerAct01.act = playerAct01.GetComponent<PlayerAct_00>();
 			Animator anim = playerAct01.GetComponent<Animator>();
-			playerAct01.AFSet("anim", anim);
+			playerAct01.anim = anim;
 			int cqb_0 = anim.GetLayerIndex("CQB_0");
-			playerAct01.AFSet("cqb_0", cqb_0);
-			playerAct01.AFSet("cqb_1", anim.GetLayerIndex("Kaede_motion"));
+			playerAct01.cqb_0 = cqb_0;
+			playerAct01.cqb_1 = anim.GetLayerIndex("Kaede_motion");
 			anim.SetLayerWeight(cqb_0, 0f);
 			for (int i = 0; i < playerPref.SyncAnimator.Length; i++)
 				playerPref.SyncAnimator[i].SetLayerWeight(cqb_0, 0f);
-			playerAct01.AFSet("player_ini", true);
+			playerAct01.player_ini = true;
 		}
 
 		// Server + Client
@@ -555,13 +554,13 @@ namespace EliminatorKaedeMP
 		private static void BeginJumpType4(PlayerControl player)
 		{
 			Vector3 storeVector = new Vector3(0f, player.jumpHeight * 1.5f, 0f);
-			player.AFSet("m_storeVector", storeVector);
-			player.AFGet<Rigidbody>("m_Rigidbody").velocity = storeVector;
+			player.m_storeVector = storeVector;
+			player.m_Rigidbody.velocity = storeVector;
 		}
 
 		private static void BeginJumpType5(PlayerControl player, PlayerPref pref, Animator anim)
 		{
-			player.AFSet("m_storeVector", new Vector3(0f, player.jumpHeight, 0f));
+			player.m_storeVector = new Vector3(0f, player.jumpHeight, 0f);
 			anim.CrossFadeInFixedTime("Kaede_motion.Jump", 0.05f);
 			for (int n = 0; n < pref.SyncAnimator.Length; n++)
 				pref.SyncAnimator[n].CrossFadeInFixedTime("Kaede_motion.Jump", 0.05f);
@@ -569,7 +568,7 @@ namespace EliminatorKaedeMP
 
 		private static void EndCrouchAnim(PlayerControl player, PlayerPref pref, Animator anim)
 		{
-			player.AFSet("crouch", false);
+			player.crouch = false;
 			anim.SetFloat("CrouchFloat", 0f);
 			for (int m = 0; m < pref.SyncAnimator.Length; m++)
 				pref.SyncAnimator[m].SetFloat("CrouchFloat", 0f);
@@ -583,10 +582,10 @@ namespace EliminatorKaedeMP
 			if (jumpType == 0)
 				return;
 
-			PlayerPref pref = player.AFGet<PlayerPref>("Perf");
-			PlayerAct_00 playerAct00 = player.AFGet<PlayerAct_00>("PlayerAct");
-			Animator anim = player.AFGet<Animator>("anim");
-			PlayerSound_Manager sound = player.AFGet<PlayerSound_Manager>("Sound");
+			PlayerPref pref = player.Perf;
+			PlayerAct_00 playerAct00 = player.PlayerAct;
+			Animator anim = player.anim;
+			PlayerSound_Manager sound = player.Sound;
 
 			if (jumpType == 1)
 			{
@@ -646,15 +645,15 @@ namespace EliminatorKaedeMP
 			if (player != GameNet.GetLocalPlayer() || player.FlyState != PlayerControl.Fly.none)
 				return;
 
-			PlayerPref pref = player.AFGet<PlayerPref>("Perf");
-			Player_Helth health = player.AFGet<Player_Helth>("Helth");
-			Player_Config_manager keyInput = player.AFGet<Player_Config_manager>("KeyInput");
-			PlayerAct_00 playerAct00 = player.AFGet<PlayerAct_00>("PlayerAct");
-			Animator anim = player.AFGet<Animator>("anim");
-			PlayerSound_Manager sound = player.AFGet<PlayerSound_Manager>("Sound");
+			PlayerPref pref = player.Perf;
+			Player_Helth health = player.Helth;
+			Player_Config_manager keyInput = player.KeyInput;
+			PlayerAct_00 playerAct00 = player.PlayerAct;
+			Animator anim = player.anim;
+			PlayerSound_Manager sound = player.Sound;
 
 			AnimatorStateInfo stateInfo = anim.GetCurrentAnimatorStateInfo(0);
-			player.AFSet("stateInfo", stateInfo);
+			player.stateInfo = stateInfo;
 
 			if (player.timeToNextJump > 0f)
 				player.timeToNextJump -= Time.deltaTime;
@@ -670,8 +669,8 @@ namespace EliminatorKaedeMP
 						stateInfo.fullPathHash != Animator.StringToHash("Kaede_motion.roll_right") &&
 						stateInfo.fullPathHash != Animator.StringToHash("Kaede_motion.roll_forward"))
 					{
-						float float_h = player.AFGet<float>("float_h");
-						float float_v = player.AFGet<float>("float_v");
+						float float_h = player.float_h;
+						float float_v = player.float_v;
 						if (float_h >= 0.5f)
 						{
 							BeginJumpRoll(playerAct00, pref, sound, anim, "Kaede_motion.roll_forward");
@@ -706,11 +705,11 @@ namespace EliminatorKaedeMP
 						return;
 
 					EndCrouchAnim(player, pref, anim);
-					if ((bool)player.AMCall("Checkobstacle").Invoke(player, null))
+					if (player.Checkobstacle())
 					{
 						player.PlayerState = PlayerControl.State.Obstacle_s;
 					}
-					else if (!player.AFGet<bool>("aim"))
+					else if (!player.aim)
 					{
 						if (player.IsMoveing() && player.IsGrounded())
 						{
@@ -780,17 +779,17 @@ namespace EliminatorKaedeMP
 		{
 			PlayerControl player = PlayerCtrl;
 
-			if (!player.AFGet<bool>("player_ini") || Time.timeScale <= 0f)
+			if (!player.player_ini || Time.timeScale <= 0f)
 				return;
 
 			bool isLocalPlayer = player == GameNet.GetLocalPlayer();
 
-			PlayerPref pref = player.AFGet<PlayerPref>("Perf");
-			Player_Helth health = player.AFGet<Player_Helth>("Helth");
-			Player_Equipment equipment = player.AFGet<Player_Equipment>("Player_Equipment");
-			Player_Config_manager keyInput = player.AFGet<Player_Config_manager>("KeyInput");
-			PlayerAct_00 playerAct00 = player.AFGet<PlayerAct_00>("PlayerAct");
-			Animator anim = player.AFGet<Animator>("anim");
+			PlayerPref pref = player.Perf;
+			Player_Helth health = player.Helth;
+			Player_Equipment equipment = player.Player_Equipment;
+			Player_Config_manager keyInput = player.KeyInput;
+			PlayerAct_00 playerAct00 = player.PlayerAct;
+			Animator anim = player.anim;
 
 			if (player.PlayerState == PlayerControl.State.Playable)
 			{
@@ -804,57 +803,50 @@ namespace EliminatorKaedeMP
 							if (health.Sick < player.Sick_thredhold)
 								aim = Input.GetKey(keyInput.WeponHold);
 						}
-						player.AFSet("aim", aim);
+						player.aim = aim;
 					}
 				}
 				else
 				{
-					player.AFSet("aim", netCtrl_isAiming);
+					player.aim = netCtrl_isAiming;
 				}
 				
-				float float_h, float_v;
 				if (isLocalPlayer)
 				{
-					bool input_h, input_v;
 					if (health.Sick >= player.Sick_thredhold && player.IsCrouch())
 					{
-						input_h = false;
-						input_v = false;
-						float_h = 0f;
-						float_v = 0f;
+						player.input_h = false;
+						player.input_v = false;
+						player.float_h = 0f;
+						player.float_v = 0f;
 					}
 					else
 					{
-						float slopeSpeed = (float)player.AMCall("SlopeSpeed").Invoke(player, null);
-						input_h = Input.GetButton("Horizontal");
-						input_v = Input.GetButton("Vertical");
-						float_h = Input.GetAxis("Horizontal") * slopeSpeed;
-						float_v = Input.GetAxis("Vertical") * slopeSpeed;
+						float slopeSpeed = player.SlopeSpeed();
+						player.input_h = Input.GetButton("Horizontal");
+						player.input_v = Input.GetButton("Vertical");
+						player.float_h = Input.GetAxis("Horizontal") * slopeSpeed;
+						player.float_v = Input.GetAxis("Vertical") * slopeSpeed;
 					}
-					player.AFSet("input_h", input_h);
-					player.AFSet("input_v", input_v);
-					player.AFSet("float_h", float_h);
-					player.AFSet("float_v", float_v);
-				}
-				else
-				{
-					float_h = player.AFGet<float>("float_h");
-					float_v = player.AFGet<float>("float_v");
 				}
 
 				if (player.IsAiming())
 				{
 					if (Input.GetKeyDown(keyInput.FirestPersonView))
-						player.AMCall(player.AFGet<bool>("FPV") ? "SetTPS" : "SetFPV").Invoke(player, null);
+					{
+						if (player.FPV)
+							player.SetTPS();
+						else
+							player.SetFPV();
+					}
 				}
 				else
 				{
-					player.AMCall("SetTPS").Invoke(player, null);
+					player.SetTPS();
 				}
-				if (player.AFGet<bool>("FPV") && anim.GetBool(Animator.StringToHash("NearWall")) &&
-					(bool)player.AMCall("IsSniper").Invoke(player, null) && pref.isMain)
+				if (player.FPV && anim.GetBool(Animator.StringToHash("NearWall")) && player.IsSniper() && pref.isMain)
 				{
-					player.AMCall("SetTPS").Invoke(player, null);
+					player.SetTPS();
 				}
 
 				if (playerAct00.RELOAD_STEP == PlayerAct_00.ReloadState.None &&
@@ -862,7 +854,7 @@ namespace EliminatorKaedeMP
 					player.PlayerState == PlayerControl.State.Playable)
 				{
 					float mouseWheel = Input.GetAxis("Mouse ScrollWheel");
-					player.AFSet("MouseWheel", mouseWheel);
+					player.MouseWheel = mouseWheel;
 					if (!player.IsAiming())
 					{
 						if (mouseWheel < 0f || Input.GetKeyDown(keyInput.ChangeSubWepon))
@@ -870,11 +862,11 @@ namespace EliminatorKaedeMP
 							if (pref.isMain)
 							{
 								equipment.switchWepon = true;
-								player.AMCall("ChangeEquipment").Invoke(player, new object[] { 0 });
+								player.ChangeEquipment(0);
 							}
 							else
 							{
-								player.AMCall("ChangeEquipment").Invoke(player, new object[] { 1 });
+								player.ChangeEquipment(1);
 							}
 						}
 						if (mouseWheel > 0f || Input.GetKeyDown(keyInput.ChangeMainWepon))
@@ -882,28 +874,27 @@ namespace EliminatorKaedeMP
 							if (pref.isSub)
 							{
 								equipment.switchWepon = true;
-								player.AMCall("ChangeEquipment").Invoke(player, new object[] { 1 });
+								player.ChangeEquipment(1);
 							}
 							else
 							{
-								player.AMCall("ChangeEquipment").Invoke(player, new object[] { 0 });
+								player.ChangeEquipment(0);
 							}
 						}
 					}
 				}
 
-				bool crouchHandler = isLocalPlayer ? Input.GetKeyDown(keyInput.Crouch) : false;
-				player.AFSet("crouchHandler", crouchHandler);
+				player.crouchHandler = isLocalPlayer ? Input.GetKeyDown(keyInput.Crouch) : false;
 				anim.SetBool("Aim", player.IsAiming());
 				anim.SetBool("Crouch", player.IsCrouch());
-				anim.SetFloat("H", float_h);
-				anim.SetFloat("V", float_v);
+				anim.SetFloat("H", player.float_h);
+				anim.SetFloat("V", player.float_v);
 				for (int i = 0; i < pref.SyncAnimator.Length; i++)
 				{
 					pref.SyncAnimator[i].SetBool("Aim", player.IsAiming());
 					pref.SyncAnimator[i].SetBool("Crouch", player.IsCrouch());
-					pref.SyncAnimator[i].SetFloat("H", float_h);
-					pref.SyncAnimator[i].SetFloat("V", float_v);
+					pref.SyncAnimator[i].SetFloat("H", player.float_h);
+					pref.SyncAnimator[i].SetFloat("V", player.float_v);
 				}
 
 				if (player.IsCrouch())
@@ -919,31 +910,30 @@ namespace EliminatorKaedeMP
 						pref.SyncAnimator[k].SetFloat("CrouchFloat", 0f, 0.1f, Time.deltaTime);
 				}
 
-				if (crouchHandler)
+				if (player.crouchHandler)
 				{
 					if (player.IsGrounded())
-						player.AFSet("crouch", !player.IsCrouch());
-					player.AFSet("crouchHandler", false);
+						player.crouch = !player.IsCrouch();
+					player.crouchHandler = false;
 				}
 				else if (!isLocalPlayer)
 				{
-					player.AFSet("crouch", netCtrl_isCrouching);
+					player.crouch = netCtrl_isCrouching;
 				}
 
-				player.AMCall("MovementManagement", new Type[] { typeof(float), typeof(float), typeof(bool), typeof(bool) })
-					.Invoke(player, new object[] { float_h, float_v, player.AFGet<bool>("run"), player.AFGet<bool>("sprint") });
+				player.MovementManagement(player.float_h, player.float_v, player.run, player.sprint);
 
 				JumpManagement();
 
-				anim.SetFloat("input_sum", Mathf.Clamp01(Mathf.Abs(float_h) + Mathf.Abs(float_v)));
+				anim.SetFloat("input_sum", Mathf.Clamp01(Mathf.Abs(player.float_h) + Mathf.Abs(player.float_v)));
 				for (int l = 0; l < pref.SyncAnimator.Length; l++)
-					pref.SyncAnimator[l].SetFloat("input_sum", Mathf.Clamp01(Mathf.Abs(float_h) + Mathf.Abs(float_v)));
+					pref.SyncAnimator[l].SetFloat("input_sum", Mathf.Clamp01(Mathf.Abs(player.float_h) + Mathf.Abs(player.float_v)));
 			}
 			else
 			{
-				player.AFSet("aim", false);
+				player.aim = false;
 			}
-			player.AMCall("CheckGroundStatus").Invoke(player, null);
+			player.CheckGroundStatus();
 		}
 	}
 }
