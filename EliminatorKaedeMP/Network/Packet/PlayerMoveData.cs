@@ -14,6 +14,11 @@ namespace EliminatorKaedeMP
 		public float PlayerRotY;
 		public float PlayerRotZ;
 		public float PlayerRotW;
+
+		public bool InputH;
+		public bool InputV;
+		public float FloatH;
+		public float FloatV;
 		//public Vector3 cameraPos;
 		//public Quaternion cameraRot;
 

@@ -1,5 +1,6 @@
 ﻿using K_PlayerControl;
 using K_PlayerControl.UI;
+using RG_GameCamera.CharacterController;
 using RG_GameCamera.Config;
 using RootMotion.FinalIK;
 using System;
@@ -19,6 +20,7 @@ namespace EliminatorKaedeMP
 			Crouch
 		}
 
+		private const float MovePacketSendInterval = 0.25f;
 		public static bool IsNetPlayerCtx = false;
 
 		public uint ID;
@@ -29,6 +31,7 @@ namespace EliminatorKaedeMP
 		private RectTransform nicknameCanvasRect = null; // This will only exist for other players, not for ours
 		private bool netCtrl_isAiming = false; // For the local player this acts as a last state, like wasAimingInLastFrame
 		private bool netCtrl_isCrouching = false; // For the local player this acts as a last state, like wasCrouchingInLastFrame
+		//private float netCtrl_lastMovePktTime = 0.0f;
 
 		// Server - This function is called on the player that sent the packet
 		public void OnPacketReceived(byte[] bytes)
@@ -149,6 +152,10 @@ namespace EliminatorKaedeMP
 		{
 			PlayerCtrl.transform.position = moveData.GetPlayerPos();
 			PlayerCtrl.transform.rotation = moveData.GetPlayerRot();
+			PlayerCtrl.AFSet("input_h", moveData.InputH);
+			PlayerCtrl.AFSet("input_v", moveData.InputV);
+			PlayerCtrl.AFSet("float_h", moveData.FloatH);
+			PlayerCtrl.AFSet("float_v", moveData.FloatV);
 		}
 
 		// Server - Sends the movement data of a player to the other clients
@@ -174,6 +181,10 @@ namespace EliminatorKaedeMP
 			PlayerMoveData moveData = new PlayerMoveData();
 			moveData.SetPlayerPos(PlayerCtrl.transform.position);
 			moveData.SetPlayerRot(PlayerCtrl.transform.rotation);
+			moveData.InputH = PlayerCtrl.AFGet<bool>("input_h");
+			moveData.InputV = PlayerCtrl.AFGet<bool>("input_v");
+			moveData.FloatH = PlayerCtrl.AFGet<float>("float_h");
+			moveData.FloatV = PlayerCtrl.AFGet<float>("float_v");
 
 			if (GameNet.IsServer)
 			{
@@ -203,7 +214,12 @@ namespace EliminatorKaedeMP
 
 			if (GameNet.GetLocalPlayer() == PlayerCtrl)
 			{
-				SendMoveData();
+				/*netCtrl_lastMovePktTime += Time.deltaTime;
+				if (netCtrl_lastMovePktTime >= MovePacketSendInterval)
+				{*/
+					SendMoveData();
+				/*	netCtrl_lastMovePktTime = 0;
+				}*/
 
 				bool isAiming = PlayerCtrl.IsAiming();
 				if (netCtrl_isAiming != isAiming)
@@ -795,38 +811,36 @@ namespace EliminatorKaedeMP
 				{
 					player.AFSet("aim", netCtrl_isAiming);
 				}
-
-				bool input_h, input_v;
+				
 				float float_h, float_v;
-				if (health.Sick >= player.Sick_thredhold && player.IsCrouch())
+				if (isLocalPlayer)
 				{
-					input_h = false;
-					input_v = false;
-					float_h = 0f;
-					float_v = 0f;
-				}
-				else
-				{
-					float slopeSpeed = (float)player.AMCall("SlopeSpeed").Invoke(player, null);
-					if (isLocalPlayer)
-					{
-						input_h = Input.GetButton("Horizontal");
-						input_v = Input.GetButton("Vertical");
-						float_h = Input.GetAxis("Horizontal") * slopeSpeed;
-						float_v = Input.GetAxis("Vertical") * slopeSpeed;
-					}
-					else
+					bool input_h, input_v;
+					if (health.Sick >= player.Sick_thredhold && player.IsCrouch())
 					{
 						input_h = false;
 						input_v = false;
 						float_h = 0f;
 						float_v = 0f;
 					}
+					else
+					{
+						float slopeSpeed = (float)player.AMCall("SlopeSpeed").Invoke(player, null);
+						input_h = Input.GetButton("Horizontal");
+						input_v = Input.GetButton("Vertical");
+						float_h = Input.GetAxis("Horizontal") * slopeSpeed;
+						float_v = Input.GetAxis("Vertical") * slopeSpeed;
+					}
+					player.AFSet("input_h", input_h);
+					player.AFSet("input_v", input_v);
+					player.AFSet("float_h", float_h);
+					player.AFSet("float_v", float_v);
 				}
-				player.AFSet("input_h", input_h);
-				player.AFSet("input_v", input_v);
-				player.AFSet("float_h", float_h);
-				player.AFSet("float_v", float_v);
+				else
+				{
+					float_h = player.AFGet<float>("float_h");
+					float_v = player.AFGet<float>("float_v");
+				}
 
 				if (player.IsAiming())
 				{
