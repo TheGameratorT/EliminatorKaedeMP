@@ -9,7 +9,8 @@
         PlayerMove,
         PlayerJump,
         PlayerCtrlKey,
-        SceneChange
+        PlayerKnifeUse,
+		SceneChange
     }
 
     // Client -> Server
@@ -17,6 +18,7 @@
     {
         PlayerMove,
         PlayerJump,
-        PlayerCtrlKey
+        PlayerCtrlKey,
+        PlayerKnifeUse
     }
 }

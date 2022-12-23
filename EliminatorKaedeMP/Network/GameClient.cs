@@ -145,6 +145,13 @@ namespace EliminatorKaedeMP
 					Plugin.CallOnMainThread(() => GameNet.GetPlayer(playerID).OnControlData(key, isDown));
 					break;
 				}
+				case S2CPacketID.PlayerKnifeUse:
+				{
+					uint playerID = reader.ReadUInt32();
+					int state = reader.ReadInt32();
+					Plugin.CallOnMainThread(() => GameNet.GetPlayer(playerID).OnKnifeUseData(state));
+					break;
+				}
 				case S2CPacketID.SceneChange:
 				{
 					int sceneID = reader.ReadInt32();

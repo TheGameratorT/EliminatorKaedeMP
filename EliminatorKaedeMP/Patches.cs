@@ -85,6 +85,18 @@ namespace EliminatorKaedeMP
 			return true;
 		}
 
+		// PlayerAct_01 ----------------------------------------------------------------
+
+		[PatchAttr(typeof(PlayerAct_01), "Update", EPatchType.Prefix)]
+		static bool PlayerAct_01_Update_Prefix(PlayerAct_01 __instance)
+		{
+			EKMPPlayer player = GameNet.GetPlayer(__instance.playerControl);
+			if (player == null)
+				return true;
+			player.Act01Update(__instance);
+			return false;
+		}
+
 		// sh_001_UI_gun ----------------------------------------------------------------
 
 

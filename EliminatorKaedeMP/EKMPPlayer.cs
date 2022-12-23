@@ -1,7 +1,5 @@
 ﻿using K_PlayerControl;
 using K_PlayerControl.UI;
-using RG_GameCamera.CharacterController;
-using RG_GameCamera.Config;
 using RootMotion.FinalIK;
 using System;
 using System.Collections.Generic;
@@ -20,7 +18,7 @@ namespace EliminatorKaedeMP
 			Crouch
 		}
 
-		private const float MovePacketSendInterval = 0.25f;
+		//private const float MovePacketSendInterval = 0.25f;
 		public static bool IsNetPlayerCtx = false;
 
 		public uint ID;
@@ -67,12 +65,13 @@ namespace EliminatorKaedeMP
 					Plugin.CallOnMainThread(() => OnControlData(key, isDown));
 					break;
 				}
-				/*case C2SPacketID.PlayerCrouch:
-                {
-					bool crouching = reader.ReadBoolean();
-                    Plugin.CallOnMainThread(() => SetCrouching(crouching));
-                    break;
-                }*/
+				case C2SPacketID.PlayerKnifeUse:
+				{
+					int step = reader.ReadInt32();
+					BroadcastKnifeUseData(step);
+					Plugin.CallOnMainThread(() => OnKnifeUseData(step));
+					break;
+				}
 				default:
 					break;
 				}
@@ -175,7 +174,7 @@ namespace EliminatorKaedeMP
 			BroadcastPacketExcludingSelf(bytes);
 		}
 
-		// Client - Sends the movement data to the server (only the local player should run this)
+		// Server + Client - Sends the movement data to the server (only the local player should run this)
 		private void SendMoveData()
 		{
 			PlayerMoveData moveData = new PlayerMoveData();
@@ -542,34 +541,37 @@ namespace EliminatorKaedeMP
 			playerPref.PlayerCharacterID = characterID;
 		}
 
-		private static void BeginJumpRoll(PlayerAct_00 playerAct00, PlayerPref pref, PlayerSound_Manager sound, Animator anim, string stateName)
+		private void BeginJumpRoll(string stateName)
 		{
-			sound.SetSound_FootStep(null, 14, 1f);
-			anim.CrossFadeInFixedTime(stateName, 0.05f);
+			PlayerPref pref = PlayerCtrl.Perf;
+			PlayerCtrl.Sound.SetSound_FootStep(null, 14, 1f);
+			PlayerCtrl.anim.CrossFadeInFixedTime(stateName, 0.05f);
 			for (int i = 0; i < pref.SyncAnimator.Length; i++)
 				pref.SyncAnimator[i].CrossFadeInFixedTime(stateName, 0.05f);
-			playerAct00.AimControl_cancel();
+			PlayerCtrl.PlayerAct.AimControl_cancel();
 		}
 
-		private static void BeginJumpType4(PlayerControl player)
+		private void BeginJumpType4()
 		{
-			Vector3 storeVector = new Vector3(0f, player.jumpHeight * 1.5f, 0f);
-			player.m_storeVector = storeVector;
-			player.m_Rigidbody.velocity = storeVector;
+			Vector3 storeVector = new Vector3(0f, PlayerCtrl.jumpHeight * 1.5f, 0f);
+			PlayerCtrl.m_storeVector = storeVector;
+			PlayerCtrl.m_Rigidbody.velocity = storeVector;
 		}
 
-		private static void BeginJumpType5(PlayerControl player, PlayerPref pref, Animator anim)
+		private void BeginJumpType5()
 		{
-			player.m_storeVector = new Vector3(0f, player.jumpHeight, 0f);
-			anim.CrossFadeInFixedTime("Kaede_motion.Jump", 0.05f);
+			PlayerPref pref = PlayerCtrl.Perf;
+			PlayerCtrl.m_storeVector = new Vector3(0f, PlayerCtrl.jumpHeight, 0f);
+			PlayerCtrl.anim.CrossFadeInFixedTime("Kaede_motion.Jump", 0.05f);
 			for (int n = 0; n < pref.SyncAnimator.Length; n++)
 				pref.SyncAnimator[n].CrossFadeInFixedTime("Kaede_motion.Jump", 0.05f);
 		}
 
-		private static void EndCrouchAnim(PlayerControl player, PlayerPref pref, Animator anim)
+		private void EndCrouchAnim()
 		{
-			player.crouch = false;
-			anim.SetFloat("CrouchFloat", 0f);
+			PlayerPref pref = PlayerCtrl.Perf;
+			PlayerCtrl.crouch = false;
+			PlayerCtrl.anim.SetFloat("CrouchFloat", 0f);
 			for (int m = 0; m < pref.SyncAnimator.Length; m++)
 				pref.SyncAnimator[m].SetFloat("CrouchFloat", 0f);
 		}
@@ -582,29 +584,24 @@ namespace EliminatorKaedeMP
 			if (jumpType == 0)
 				return;
 
-			PlayerPref pref = player.Perf;
-			PlayerAct_00 playerAct00 = player.PlayerAct;
-			Animator anim = player.anim;
-			PlayerSound_Manager sound = player.Sound;
-
 			if (jumpType == 1)
 			{
-				BeginJumpRoll(playerAct00, pref, sound, anim, "Kaede_motion.roll_forward");
+				BeginJumpRoll("Kaede_motion.roll_forward");
 			}
 			else if (jumpType == 2)
 			{
-				BeginJumpRoll(playerAct00, pref, sound, anim, "Kaede_motion.roll_back");
+				BeginJumpRoll("Kaede_motion.roll_back");
 			}
 			else if (jumpType >= 3 && jumpType <= 5)
 			{
-				EndCrouchAnim(player, pref, anim);
+				EndCrouchAnim();
 				if (jumpType == 4)
 				{
-					BeginJumpType4(player);
+					BeginJumpType4();
 				}
 				else if (jumpType == 5)
 				{
-					BeginJumpType5(player, pref, anim);
+					BeginJumpType5();
 				}
 			}
 		}
@@ -619,7 +616,7 @@ namespace EliminatorKaedeMP
 			BroadcastPacketExcludingSelf(jumpData);
 		}
 
-		// Client - Sends the jump data to the server (only the local player should run this)
+		// Server + Client - Sends the jump data to the server (only the local player should run this)
 		private void SendJumpData(int jumpType)
 		{
 			if (GameNet.IsServer)
@@ -645,20 +642,13 @@ namespace EliminatorKaedeMP
 			if (player != GameNet.GetLocalPlayer() || player.FlyState != PlayerControl.Fly.none)
 				return;
 
-			PlayerPref pref = player.Perf;
-			Player_Helth health = player.Helth;
-			Player_Config_manager keyInput = player.KeyInput;
-			PlayerAct_00 playerAct00 = player.PlayerAct;
-			Animator anim = player.anim;
-			PlayerSound_Manager sound = player.Sound;
-
-			AnimatorStateInfo stateInfo = anim.GetCurrentAnimatorStateInfo(0);
+			AnimatorStateInfo stateInfo = player.anim.GetCurrentAnimatorStateInfo(0);
 			player.stateInfo = stateInfo;
 
 			if (player.timeToNextJump > 0f)
 				player.timeToNextJump -= Time.deltaTime;
 
-			if (Input.GetKeyDown(keyInput.Jump) && health.Sick < player.Sick_thredhold)
+			if (Input.GetKeyDown(player.KeyInput.Jump) && player.Helth.Sick < player.Sick_thredhold)
 			{
 				if (!player.IsGrounded() || player.PlayerState != PlayerControl.State.Playable)
 					return;
@@ -673,25 +663,25 @@ namespace EliminatorKaedeMP
 						float float_v = player.float_v;
 						if (float_h >= 0.5f)
 						{
-							BeginJumpRoll(playerAct00, pref, sound, anim, "Kaede_motion.roll_forward");
+							BeginJumpRoll("Kaede_motion.roll_forward");
 							SendJumpData(1);
 							return;
 						}
 						if (float_h <= -0.5f)
 						{
-							BeginJumpRoll(playerAct00, pref, sound, anim, "Kaede_motion.roll_forward");
+							BeginJumpRoll("Kaede_motion.roll_forward");
 							SendJumpData(1);
 							return;
 						}
 						if (float_v >= 0.5f)
 						{
-							BeginJumpRoll(playerAct00, pref, sound, anim, "Kaede_motion.roll_forward");
+							BeginJumpRoll("Kaede_motion.roll_forward");
 							SendJumpData(1);
 							return;
 						}
 						if (float_v <= -0.5f)
 						{
-							BeginJumpRoll(playerAct00, pref, sound, anim, "Kaede_motion.roll_back");
+							BeginJumpRoll("Kaede_motion.roll_back");
 							SendJumpData(2);
 							return;
 						}
@@ -704,7 +694,7 @@ namespace EliminatorKaedeMP
 						stateInfo.fullPathHash != Animator.StringToHash("Kaede_motion.crouch"))
 						return;
 
-					EndCrouchAnim(player, pref, anim);
+					EndCrouchAnim();
 					if (player.Checkobstacle())
 					{
 						player.PlayerState = PlayerControl.State.Obstacle_s;
@@ -713,12 +703,12 @@ namespace EliminatorKaedeMP
 					{
 						if (player.IsMoveing() && player.IsGrounded())
 						{
-							BeginJumpType4(player);
+							BeginJumpType4();
 							SendJumpData(4);
 						}
 						else
 						{
-							BeginJumpType5(player, pref, anim);
+							BeginJumpType5();
 							SendJumpData(5);
 						}
 					}
@@ -755,7 +745,7 @@ namespace EliminatorKaedeMP
 			BroadcastPacketExcludingSelf(jumpData);
 		}
 
-		// Client - Sends the key data to the server (only the local player should run this)
+		// Server + Client - Sends the key data to the server (only the local player should run this)
 		private void SendControlData(CtrlKey key, bool isDown)
 		{
 			if (GameNet.IsServer)
@@ -934,6 +924,298 @@ namespace EliminatorKaedeMP
 				player.aim = false;
 			}
 			player.CheckGroundStatus();
+		}
+
+		// Server + Client - Runs when knife use data is received
+		public void OnKnifeUseData(int step)
+		{
+			PlayerAct_01 act01 = PlayerCtrl.PlayerAct01;
+			if (step == 0)
+			{
+				act01.OnClick = 1;
+				act01.STEP = 1;
+			}
+			else if (step == 1)
+			{
+				act01.OnClick = 2;
+				if (act01.STEP == 0 || act01.STEP > 3)
+				{
+					// If for some reason the previous steps aren't executing we must force the step
+					ForceBeginKnifeStep(4, ".CQB_01");
+				}
+			}
+			else if (step == 2)
+			{
+				act01.OnClick = 3;
+				if (act01.STEP == 0 || act01.STEP > 4)
+				{
+					// If for some reason the previous steps aren't executing we must force the step
+					act01.ShowCollsion(0);
+					ForceBeginKnifeStep(5, ".CQB_02");
+				}
+			}
+		}
+
+		// Server + Client - This function is only meant to be used for forcing steps 4 and 5
+		// This function is used when the player initiates a knife combo while the initial knife
+		// animation has ended on the receiver's side.
+		private void ForceBeginKnifeStep(int step, string stateName)
+		{
+			PlayerAct_01 act01 = PlayerCtrl.PlayerAct01;
+			PlayerAct_00 act00 = PlayerCtrl.PlayerAct;
+
+			act01.IsMove = false;
+			act00.enabled = false;
+			act01.OnfKnife();
+			PlayerCtrl.PlayerState = PlayerControl.State.OnKnifeAct;
+
+			BeginKnifeAnim(stateName, 0f);
+			act01.STEP = step;
+		}
+
+		// Server - Sends the knife use data of a player to the other clients
+		private void BroadcastKnifeUseData(int step)
+		{
+			byte[] data = new byte[sizeof(int) * 3];
+			Utils.WriteInt(data, 0, (int)S2CPacketID.PlayerKnifeUse);
+			Utils.WriteInt(data, 4, (int)ID);
+			Utils.WriteInt(data, 8, step);
+			BroadcastPacketExcludingSelf(data);
+		}
+
+		// Server + Client - Sends the knife use data to the server (only the local player should run this)
+		private void SendKnifeUseData(int step)
+		{
+			if (GameNet.IsServer)
+			{
+				// If we are a server, there is not point in sending the data to ourselves, just send it to the other clients
+				BroadcastKnifeUseData(step);
+			}
+			else
+			{
+				// But if we are a client, we must send it to the server so that it will broadcast it to other clients
+				byte[] data = new byte[sizeof(int) * 2];
+				Utils.WriteInt(data, 0, (int)C2SPacketID.PlayerKnifeUse);
+				Utils.WriteInt(data, 4, step);
+				Client.SendPacket(data);
+			}
+		}
+
+		private void BeginKnifeAnim(string animPrefix, float fixedTransitionDuration)
+		{
+			PlayerAct_01 act01 = PlayerCtrl.PlayerAct01;
+			Animator anim = PlayerCtrl.anim;
+			PlayerPref pref = PlayerCtrl.Perf;
+
+			string layerName0 = act01.LayerName[0] + animPrefix;
+			string layerName1 = act01.LayerName[1] + animPrefix;
+			anim.CrossFadeInFixedTime(layerName0, fixedTransitionDuration);
+			anim.CrossFadeInFixedTime(layerName1, fixedTransitionDuration);
+			for (int m = 0; m < pref.SyncAnimator.Length; m++)
+			{
+				pref.SyncAnimator[m].CrossFadeInFixedTime(layerName0, fixedTransitionDuration);
+				pref.SyncAnimator[m].CrossFadeInFixedTime(layerName1, fixedTransitionDuration);
+			}
+		}
+
+		// Server + Client - Replacement for PlayerAct_01.Update
+		public void Act01Update(PlayerAct_01 act01)
+		{
+			// TODO: BETTER KNIFE
+
+			if (!act01.player_ini)
+				return;
+
+			PlayerControl player = act01.playerControl;
+			PlayerPref pref = act01.Perf;
+			Animator anim = act01.anim;
+			PlayerAct_00 act00 = act01.act;
+
+			if (player.PlayerState != PlayerControl.State.Playable && player.PlayerState != PlayerControl.State.OnKnifeAct)
+				return;
+
+			act01.stateInfo = anim.GetCurrentAnimatorStateInfo(act01.cqb_0);
+
+			bool isLocalPlayer = player == GameNet.GetLocalPlayer();
+			if (isLocalPlayer)
+			{
+				if (Input.GetKeyDown(act01.KeyInput.WeponUse) && !player.IsAiming() && !player.IsCrouch())
+				{
+					if (act00.Granade != PlayerAct_00.GranadeState.None || DoorActManager.Instance.DoorState != DoorActManager.State.Door_Idle)
+						return;
+
+					if (act00.RELOAD_STEP != PlayerAct_00.ReloadState.None)
+					{
+						act00.CancelReload();
+						act00.RELOAD_STEP = PlayerAct_00.ReloadState.None;
+					}
+					if (act01.STEP == 0)
+					{
+						act01.OnClick = 1;
+						act01.STEP = 1;
+						SendKnifeUseData(0);
+					}
+					else if (act01.STEP == 3)
+					{
+						act01.OnClick = 2;
+						SendKnifeUseData(1);
+					}
+					else if (act01.STEP == 4)
+					{
+						act01.OnClick = 3;
+						SendKnifeUseData(2);
+					}
+				}
+			}
+
+			if (!player.IsGrounded())
+				act01.CancelKnife();
+
+			if (act01.STEP > 2 && act01.STEP < 10)
+			{
+				Vector3 vector = pref.MainCamera.transform.TransformDirection(Vector3.forward);
+				vector.y = 0f;
+				Quaternion quaternion = Quaternion.LookRotation(vector, Vector3.up);
+				Quaternion quaternion2 = Quaternion.Slerp(act01.GetComponent<Rigidbody>().rotation, quaternion, 0.8f);
+				act01.GetComponent<Rigidbody>().MoveRotation(quaternion2);
+				if (PlayerPrefs.GetFloat("Key_ActDirection", 0f) == 1f)
+					act01.transform.rotation = quaternion2;
+			}
+
+			if (act01.STEP == 0)
+				return;
+
+			if (act01.STEP == 1)
+			{
+				act01.IsMove = false;
+				anim.CrossFadeInFixedTime(act01.LayerName[0] + ".OnKnife", 0.1f);
+				for (int j = 0; j < pref.SyncAnimator.Length; j++)
+					pref.SyncAnimator[j].CrossFadeInFixedTime(act01.LayerName[0] + ".OnKnife", 0.1f);
+				act00.enabled = false;
+				act01.STEP = 2;
+			}
+			else if (act01.STEP == 2)
+			{
+				anim.SetLayerWeight(act01.cqb_0, Mathf.Lerp(anim.GetLayerWeight(act01.cqb_0), 1f, 0.2f));
+				for (int k = 0; k < pref.SyncAnimator.Length; k++)
+					pref.SyncAnimator[k].SetLayerWeight(act01.cqb_0, Mathf.Lerp(pref.SyncAnimator[k].GetLayerWeight(act01.cqb_0), 1f, 0.2f));
+				if (act01.stateInfo.normalizedTime > 0.95f)
+				{
+					act01.OnfKnife();
+					anim.CrossFadeInFixedTime(act01.LayerName[1] + ".CQB_00", 0.1f);
+					anim.CrossFadeInFixedTime(act01.LayerName[0] + ".CQB_00", 0.1f);
+					anim.SetLayerWeight(act01.cqb_0, 1f);
+					for (int l = 0; l < pref.SyncAnimator.Length; l++)
+					{
+						pref.SyncAnimator[l].CrossFadeInFixedTime(act01.LayerName[1] + ".CQB_00", 0.1f);
+						pref.SyncAnimator[l].CrossFadeInFixedTime(act01.LayerName[0] + ".CQB_00", 0.1f);
+						pref.SyncAnimator[l].SetLayerWeight(act01.cqb_0, 1f);
+					}
+					player.PlayerState = PlayerControl.State.OnKnifeAct;
+					act01.STEP = 3;
+				}
+			}
+			else if (act01.STEP == 3)
+			{
+				act01.test = act01.stateInfo.normalizedTime;
+				if (act01.stateInfo.fullPathHash == Animator.StringToHash(act01.LayerName[0] + ".CQB_00"))
+				{
+					// Added "(act01.OnClick < 2 || isLocalPlayer)" check because the packet
+					// might arrive after the animation has ended and we still want to play it
+					if ((act01.OnClick < 2 || isLocalPlayer) && act01.stateInfo.normalizedTime > 0.9f)
+					{
+						act01.ShowCollsion(0);
+						BeginKnifeAnim(".CQB_03", 0.3f);
+						player.PlayerState = PlayerControl.State.Playable;
+						act01.STEP = 10;
+					}
+					else if (act01.stateInfo.normalizedTime > 0.6f && act01.OnClick >= 2)
+					{
+						// Starts step 4
+						BeginKnifeAnim(".CQB_01", 0f);
+						act01.STEP = 4;
+					}
+				}
+			}
+			else if (act01.STEP == 4)
+			{
+				if (act01.stateInfo.fullPathHash == Animator.StringToHash(act01.LayerName[0] + ".CQB_01"))
+				{
+					// Added "(act01.OnClick < 3 || isLocalPlayer)" check because the packet
+					// might arrive after the animation has ended and we still want to play it
+					if ((act01.OnClick < 3 || isLocalPlayer) && act01.stateInfo.normalizedTime > 0.9f)
+					{
+						act01.ShowCollsion(0);
+						BeginKnifeAnim(".CQB_04", 0.3f);
+						player.PlayerState = PlayerControl.State.Playable;
+						act01.STEP = 10;
+					}
+					else if (act01.stateInfo.normalizedTime > 0.65f && act01.OnClick >= 3)
+					{
+						// Starts step 5
+						act01.ShowCollsion(0);
+						BeginKnifeAnim(".CQB_02", 0f);
+						act01.STEP = 5;
+					}
+				}
+			}
+			else if (act01.STEP == 5)
+			{
+				if (act01.stateInfo.fullPathHash == Animator.StringToHash(act01.LayerName[0] + ".OffKnife"))
+				{
+					player.PlayerState = PlayerControl.State.Playable;
+					act01.STEP = 10;
+				}
+			}
+			else if (act01.STEP == 10)
+			{
+				if (act01.stateInfo.fullPathHash == Animator.StringToHash(act01.LayerName[0] + ".OffKnife") && act01.stateInfo.normalizedTime > 0.9f)
+				{
+					act01.Knife_Hand.SetActive(false);
+					act01.Knife_Holder.SetActive(true);
+					anim.SetLayerWeight(act01.cqb_0, Mathf.Lerp(anim.GetLayerWeight(act01.cqb_0), 0f, 0.3f));
+					for (int num3 = 0; num3 < pref.SyncAnimator.Length; num3++)
+						pref.SyncAnimator[num3].SetLayerWeight(act01.cqb_0, Mathf.Lerp(pref.SyncAnimator[num3].GetLayerWeight(act01.cqb_0), 0f, 0.3f));
+					if (anim.GetLayerWeight(act01.cqb_0) < 0.1f)
+					{
+						act01.STEP = 0;
+						act00.enabled = true;
+						anim.CrossFadeInFixedTime(act01.LayerName[0] + ".None", 0.05f);
+						anim.SetLayerWeight(act01.cqb_0, 0f);
+						for (int num4 = 0; num4 < pref.SyncAnimator.Length; num4++)
+						{
+							pref.SyncAnimator[num4].CrossFadeInFixedTime(act01.LayerName[0] + ".None", 0.05f);
+							pref.SyncAnimator[num4].SetLayerWeight(act01.cqb_0, 0f);
+						}
+					}
+				}
+				if (act01.stateInfo.fullPathHash == Animator.StringToHash(act01.LayerName[0] + ".Idle_00"))
+				{
+					anim.SetLayerWeight(act01.cqb_0, Mathf.Lerp(anim.GetLayerWeight(act01.cqb_0), 0f, 0.3f));
+					for (int num6 = 0; num6 < pref.SyncAnimator.Length; num6++)
+						pref.SyncAnimator[num6].SetLayerWeight(act01.cqb_0, Mathf.Lerp(pref.SyncAnimator[num6].GetLayerWeight(act01.cqb_0), 0f, 0.3f));
+					if (anim.GetLayerWeight(act01.cqb_0) < 0.1f)
+					{
+						act01.STEP = 0;
+						act00.enabled = true;
+						anim.CrossFadeInFixedTime(act01.LayerName[0] + ".None", 0.05f);
+						anim.SetLayerWeight(act01.cqb_0, 0f);
+						for (int num7 = 0; num7 < pref.SyncAnimator.Length; num7++)
+						{
+							pref.SyncAnimator[num7].CrossFadeInFixedTime(act01.LayerName[0] + ".None", 0.05f);
+							pref.SyncAnimator[num7].SetLayerWeight(act01.cqb_0, 0f);
+						}
+					}
+				}
+				if (act01.stateInfo.fullPathHash == Animator.StringToHash(act01.LayerName[0] + ".None"))
+				{
+					act01.STEP = 0;
+					act00.enabled = true;
+					anim.SetLayerWeight(act01.cqb_0, 0f);
+					for (int num8 = 0; num8 < pref.SyncAnimator.Length; num8++)
+						pref.SyncAnimator[num8].SetLayerWeight(act01.cqb_0, 0f);
+				}
+			}
 		}
 	}
 }

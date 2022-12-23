@@ -34,7 +34,7 @@ namespace EliminatorKaedeMP
         {
             Client.Disconnect();
             Client = null;
-        }
+		}
 
         // Gets a player controller by the ID of the player, null if not found
         public static EKMPPlayer GetPlayer(uint playerID)
