@@ -1021,8 +1021,6 @@ namespace EliminatorKaedeMP
 		// Server + Client - Replacement for PlayerAct_01.Update
 		public void Act01Update(PlayerAct_01 act01)
 		{
-			// TODO: BETTER KNIFE
-
 			if (!act01.player_ini)
 				return;
 
