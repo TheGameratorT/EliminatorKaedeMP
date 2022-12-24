@@ -50,12 +50,14 @@ namespace EliminatorKaedeMP
         private void OnPlayerInfoPacketReceived(NetClient netClient, byte[] bytes)
         {
             string playerName;
+            int characterID;
             using (MemoryStream stream = new MemoryStream(bytes))
             {
                 using (BinaryReader reader = new BinaryReader(stream))
                 {
                     playerName = reader.ReadString();
-                }
+					characterID = reader.ReadByte();
+				}
             }
 
             Plugin.CallOnMainThread(() =>
@@ -64,7 +66,8 @@ namespace EliminatorKaedeMP
                 mpPlayer.ID = nextPlayerID;
                 mpPlayer.Client = netClient;
                 mpPlayer.Name = playerName;
-                mpPlayer.TryInstantiateNetPlayer();
+                mpPlayer.netCtrl_characterID = characterID;
+				mpPlayer.TryInstantiateNetPlayer();
 
                 nextPlayerID++;
 

@@ -4,13 +4,14 @@
     public enum S2CPacketID
     {
         GameJoinInfo,
-        PlayerJoin,
+		SceneChange,
+		PlayerJoin,
         PlayerLeave,
         PlayerMove,
         PlayerJump,
         PlayerCtrlKey,
         PlayerKnifeUse,
-		SceneChange
+		PlayerChangeChar
     }
 
     // Client -> Server
@@ -19,6 +20,7 @@
         PlayerMove,
         PlayerJump,
         PlayerCtrlKey,
-        PlayerKnifeUse
+        PlayerKnifeUse,
+        PlayerChangeChar
     }
 }

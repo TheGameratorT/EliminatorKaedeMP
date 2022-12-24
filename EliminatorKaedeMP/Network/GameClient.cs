@@ -1,4 +1,5 @@
-﻿using System;
+﻿using K_PlayerControl;
+using System;
 using System.IO;
 using System.Text;
 using UnityEngine.SceneManagement;
@@ -59,6 +60,7 @@ namespace EliminatorKaedeMP
 				using (BinaryWriter writer = new BinaryWriter(stream))
 				{
 					writer.Write(Utils.GetPlayerName());
+					writer.Write((byte) PlayerPref.instance.PlayerCharacterID);
 				}
 				bytes2 = stream.ToArray();
 			}
@@ -83,6 +85,7 @@ namespace EliminatorKaedeMP
 					stream.Position = 4;
 					GameJoinInfoData joinInfo = (GameJoinInfoData)Utils.Deserialize(stream);
 					uint playerID = joinInfo.PlayerID;
+					int sceneID = joinInfo.SceneID;
 					Plugin.CallOnMainThread(() =>
 					{
 						foreach (PlayerInfoData playerInfo in joinInfo.PlayerInfos)
@@ -90,6 +93,7 @@ namespace EliminatorKaedeMP
 							EKMPPlayer mpPlayer = new EKMPPlayer();
 							mpPlayer.ID = playerInfo.ID;
 							mpPlayer.Name = playerInfo.Name;
+							mpPlayer.netCtrl_characterID = playerInfo.CharacterID;
 							if (playerInfo.ID == playerID) // If this is our player instance
 							{
 								mpPlayer.Client = netClient;
@@ -103,7 +107,15 @@ namespace EliminatorKaedeMP
 							}
 							GameNet.Players.Add(mpPlayer);
 						}
+						if (Utils.GetCurrentScene() != sceneID)
+							SceneManager.LoadScene(sceneID);
 					});
+					break;
+				}
+				case S2CPacketID.SceneChange:
+				{
+					int sceneID = reader.ReadInt32();
+					Plugin.CallOnMainThread(() => SceneManager.LoadScene(sceneID));
 					break;
 				}
 				case S2CPacketID.PlayerJoin:
@@ -152,10 +164,11 @@ namespace EliminatorKaedeMP
 					Plugin.CallOnMainThread(() => GameNet.GetPlayer(playerID).OnKnifeUseData(state));
 					break;
 				}
-				case S2CPacketID.SceneChange:
+				case S2CPacketID.PlayerChangeChar:
 				{
-					int sceneID = reader.ReadInt32();
-					Plugin.CallOnMainThread(() => SceneManager.LoadScene(sceneID));
+					uint playerID = reader.ReadUInt32();
+					int charID = reader.ReadInt32();
+					Plugin.CallOnMainThread(() => GameNet.GetPlayer(playerID).SetPlayerCharacter(charID));
 					break;
 				}
 				default:

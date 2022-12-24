@@ -18,7 +18,7 @@ namespace EliminatorKaedeMP
 			Crouch
 		}
 
-		//private const float MovePacketSendInterval = 0.25f;
+		private const float MovePacketSendInterval = 0.03f;
 		public static bool IsNetPlayerCtx = false;
 
 		public uint ID;
@@ -29,7 +29,11 @@ namespace EliminatorKaedeMP
 		private RectTransform nicknameCanvasRect = null; // This will only exist for other players, not for ours
 		private bool netCtrl_isAiming = false; // For the local player this acts as a last state, like wasAimingInLastFrame
 		private bool netCtrl_isCrouching = false; // For the local player this acts as a last state, like wasCrouchingInLastFrame
-		//private float netCtrl_lastMovePktTime = 0.0f;
+		private float netCtrl_lastMovePktTime = 0.0f;
+		public int netCtrl_characterID = 0; // Only used for storing the player character while the player hasn't spawned
+
+		private GameObject kaedeHeadObj = null; // Only set for non-local player
+		private GameObject momijiHeadObj = null; // Only set for non-local player
 
 		// Server - This function is called on the player that sent the packet
 		public void OnPacketReceived(byte[] bytes)
@@ -72,6 +76,13 @@ namespace EliminatorKaedeMP
 					Plugin.CallOnMainThread(() => OnKnifeUseData(step));
 					break;
 				}
+				case C2SPacketID.PlayerChangeChar:
+				{
+					int charID = reader.ReadInt32();
+					BroadcastCharChangeData(charID);
+					Plugin.CallOnMainThread(() => SetPlayerCharacter(charID));
+					break;
+				}
 				default:
 					break;
 				}
@@ -96,12 +107,14 @@ namespace EliminatorKaedeMP
 				// This is sent to the player who joined, unless that player is also the server
 				GameJoinInfoData joinData;
 				joinData.PlayerID = ID;
+				joinData.SceneID = (byte) Utils.GetCurrentScene();
 				joinData.PlayerInfos = new List<PlayerInfoData>();
 				foreach (EKMPPlayer mpPlayer in GameNet.Players)
 				{
 					PlayerInfoData playerInfo;
 					playerInfo.ID = mpPlayer.ID;
 					playerInfo.Name = mpPlayer.Name;
+					playerInfo.CharacterID = (byte)((PlayerCtrl == null) ? netCtrl_characterID : PlayerCtrl.Perf.PlayerCharacterID);
 					joinData.PlayerInfos.Add(playerInfo);
 				}
 				byte[] bytes;
@@ -123,7 +136,11 @@ namespace EliminatorKaedeMP
 		{
 			GameNet.Players.Remove(this);
 			if (PlayerCtrl != null)
+			{
 				UnityEngine.Object.Destroy(PlayerCtrl.gameObject);
+				UnityEngine.Object.Destroy(PlayerCtrl.Perf.MainCamera.gameObject);
+				UnityEngine.Object.Destroy(PlayerCtrl.Perf.gameObject);
+			}
 
 			Plugin.Log(Name + " has left!");
 
@@ -213,12 +230,12 @@ namespace EliminatorKaedeMP
 
 			if (GameNet.GetLocalPlayer() == PlayerCtrl)
 			{
-				/*netCtrl_lastMovePktTime += Time.deltaTime;
+				netCtrl_lastMovePktTime += Time.deltaTime;
 				if (netCtrl_lastMovePktTime >= MovePacketSendInterval)
-				{*/
+				{
 					SendMoveData();
-				/*	netCtrl_lastMovePktTime = 0;
-				}*/
+					netCtrl_lastMovePktTime = 0;
+				}
 
 				bool isAiming = PlayerCtrl.IsAiming();
 				if (netCtrl_isAiming != isAiming)
@@ -251,10 +268,10 @@ namespace EliminatorKaedeMP
 				return null;
 
 			IsNetPlayerCtx = true;
-			PlayerControl newPlayer = UnityEngine.Object.Instantiate(player.gameObject).GetComponent<PlayerControl>();
+			PlayerCtrl = UnityEngine.Object.Instantiate(player.gameObject).GetComponent<PlayerControl>();
 			try
 			{
-				InitializeNetPlayer(newPlayer);
+				InitializeNetPlayer();
 			}
 			catch (Exception ex)
 			{
@@ -262,14 +279,15 @@ namespace EliminatorKaedeMP
 			}
 			IsNetPlayerCtx = false;
 
-			PlayerCtrl = newPlayer;
-			return newPlayer;
+			return PlayerCtrl;
 		}
 
 		// Server + Client - Initializes the player in a way that allows for it to be controlled by our network manager
-		public void InitializeNetPlayer(PlayerControl player)
+		public void InitializeNetPlayer()
 		{
 			// Custom recreation of PlayerControl.InitializePlayerControl
+
+			PlayerControl player = PlayerCtrl;
 
 			Player_Equipment playerEquipment = player.GetComponent<Player_Equipment>();
 			PlayerAct_00 playerAct00 = player.GetComponent<PlayerAct_00>();
@@ -281,7 +299,7 @@ namespace EliminatorKaedeMP
 			// creating a PlayerPref will fail because SetPlayerCharacter will try to call changeWeponID before it can.
 			playerEquipment.initialize = false;
 
-			PlayerPref playerPref = CreateNetPlayerPref(player);
+			PlayerPref playerPref = CreateNetPlayerPref();
 			Player_DecalManager decal = Player_DecalManager.Instance;
 			Player_Config_manager keyInput = Player_Config_manager.Instance;
 			PlayerSound_Manager sound = PlayerSound_Manager.Instance;
@@ -307,7 +325,6 @@ namespace EliminatorKaedeMP
 			for (int i = 0; i < playerPref.SyncAnimator.Length; i++)
 				GroundIK_list[i] = playerPref.SyncAnimator[i].gameObject.GetComponent<GrounderFBBIK>();
 
-			player.Perf = playerPref;
 			player.Decal = decal;
 			player.KeyInput = keyInput;
 			player.Sound = sound;
@@ -328,13 +345,13 @@ namespace EliminatorKaedeMP
 			player.Gimic = PlayerControl.StageGimic.NULL;
 			player.FPV_target = null;
 			player.GroundIK_list = GroundIK_list;
+			SetPlayerCharacter(netCtrl_characterID);
 			InitializePlayerEquipment(playerEquipment, playerPref);
 			InitializePlayerAct00(player);
 			InitializePlayerAct01(playerAct01, playerPref, keyInput);
 			sound.PlayerSound_ini("AudioPosition");
-			player.player_ini = true;
 			player.downforce_store = player.DownForce;
-			player.obstacleRaycastStart = player.gameObject.transform.FindDeep("DEMO_Pelvis", false);
+			player.obstacleRaycastStart = player.transform.FindDeep("DEMO_Pelvis", false);
 			player.FPS_CAM_Target = GameObject.Find("FPS_cam_target");
 
 			Player_FootSoundControler playerFootSoundControler = player.GetComponent<Player_FootSoundControler>();
@@ -350,13 +367,14 @@ namespace EliminatorKaedeMP
 				playerFootSound.FootSoundCtrl = playerFootSoundControler;
 			}
 
-			Transform playerHeadTransform = player.gameObject.transform.Find("Root/DEMO_Pelvis/DEMO_Spine/DEMO_Spine1/Spine_1_5/DEMO_Spine2/DEMO_Spine3/DEMO_Neck/DEMO_Neck2/DEMO_Head");
+			kaedeHeadObj = player.transform.Find("Root/DEMO_Pelvis/DEMO_Spine/DEMO_Spine1/Spine_1_5/DEMO_Spine2/DEMO_Spine3/DEMO_Neck/DEMO_Neck2/DEMO_Head").gameObject;
+			momijiHeadObj = player.transform.Find("momiji_rev_201805/Root/DEMO_Pelvis/DEMO_Spine/DEMO_Spine1/Spine_1_5/DEMO_Spine2/DEMO_Spine3/DEMO_Neck/DEMO_Neck2/DEMO_Head").gameObject;
 
 			GameObject nicknameCanvasObj = new GameObject("NicknameCanvas");
 			Canvas nicknameCanvas = nicknameCanvasObj.AddComponent<Canvas>();
 			nicknameCanvasRect = (RectTransform)nicknameCanvasObj.transform;
 			nicknameCanvas.renderMode = RenderMode.WorldSpace;
-			nicknameCanvasRect.SetParent(playerHeadTransform);
+			nicknameCanvasRect.SetParent(kaedeHeadObj.transform);
 			nicknameCanvasRect.localPosition = new Vector3(0.0f, 0.28f, 0.0f);
 			nicknameCanvasRect.localRotation = Quaternion.identity;
 			nicknameCanvasRect.localScale = new Vector3(0.0025f, 0.0025f, 1.0f);
@@ -377,28 +395,68 @@ namespace EliminatorKaedeMP
 			nicknameTextRect.localScale = new Vector3(-1.0f, 1.0f, 1.0f);
 			nicknameTextRect.pivot = new Vector2(0.5f, 0.5f);
 			nicknameTextRect.sizeDelta = new Vector2(350.0f, 40.0f);
+
+			player.player_ini = true;
 		}
 
 		// Server + Client
-		private PlayerPref CreateNetPlayerPref(PlayerControl player)
+		private PlayerPref CreateNetPlayerPref()
 		{
-			GameObject playerPrefObj = new GameObject("PlayerPref");
+			GameObject playerPrefObj = new GameObject("PlayerPref_" + ID);
 			EKMPPlayerPref playerPref = playerPrefObj.AddComponent<EKMPPlayerPref>();
+			PlayerCtrl.Perf = playerPref;
+
+			// Create a virtual camera used only for aim and rotation purposes
+			GameObject camera = new GameObject("NetCamera_" + ID);
+			camera.AddComponent<Camera>().enabled = false; // The component only exists to avoid reference errors
+
+			// Create a new PlayerData instance
+			CreatePlayerData();
+
 			playerPref.MPPlayer = this;
-			playerPref.PlayerIncetance = player.gameObject;
+			playerPref.PlayerIncetance = PlayerCtrl.gameObject;
 			playerPref.PerfIncetance = playerPrefObj;
 			playerPref.SyncAnimator = PlayerPref.Instance.SyncAnimator;
 			playerPref.GameCamera = PlayerPref.Instance.GameCamera; // might need custom dummy
-			playerPref.MainCamera = PlayerPref.Instance.MainCamera; // might need custom dummy
+			playerPref.MainCamera = camera;
 			playerPref.DummyCamera = PlayerPref.Instance.DummyCamera; // might need custom dummy
 			playerPref.weponList = PlayerPref.Instance.weponList;
 			playerPref.sub_weponList = PlayerPref.Instance.sub_weponList;
 			playerPref.wepon_static_List = PlayerPref.Instance.wepon_static_List; // might need custom dummy
-			playerPref.PlayerData = PlayerPref.Instance.PlayerData; // might need custom dummy
 			playerPref.LayerMaskInfo = PlayerPref.Instance.LayerMaskInfo;
-			SetPlayerCharacter(playerPref, 0);
 			playerPrefObj.AddComponent<UI_weponIcon>();
+			ToiletEventManager toiletMgr = playerPrefObj.AddComponent<ToiletEventManager>();
+			InitializeToiletEventManager(toiletMgr);
 			return playerPref;
+		}
+
+		private void CreatePlayerData()
+		{
+			PlayerPref playerPref = PlayerCtrl.Perf;
+			PlayerPref ogPlayerPref = PlayerPref.instance;
+			Transform playerTransform = PlayerCtrl.transform;
+
+			GameObject kaedeCharDataObj = UnityEngine.Object.Instantiate(ogPlayerPref.PlayerData[0].gameObject);
+			kaedeCharDataObj.transform.parent = playerPref.transform;
+			kaedeCharDataObj.name = "PlayableCharacter_Kaede";
+			PlayableCharacterData kaedeCharData = kaedeCharDataObj.GetComponent<PlayableCharacterData>();
+			kaedeCharData.PlayerData = new GameObject[2];
+			kaedeCharData.PlayerData[0] = playerTransform.Find("Root/DEMO_Pelvis/DEMO_Spine/DEMO_Spine1/Spine_1_5/DEMO_Spine2/DEMO_Spine3/DEMO_Neck/DEMO_Neck2/DEMO_Head").gameObject;
+			kaedeCharData.PlayerData[1] = playerTransform.Find("geomGrp").gameObject;
+
+			GameObject mojimiCharDataObj = UnityEngine.Object.Instantiate(ogPlayerPref.PlayerData[1].gameObject);
+			mojimiCharDataObj.transform.parent = playerPref.transform;
+			mojimiCharDataObj.name = "PlayableCharacter_Momiji";
+			PlayableCharacterData mojimiCharData = mojimiCharDataObj.GetComponent<PlayableCharacterData>();
+			mojimiCharData.PlayerData = new GameObject[2];
+			mojimiCharData.PlayerData[0] = playerTransform.Find("momiji_rev_201805/Root").gameObject;
+			mojimiCharData.PlayerData[1] = playerTransform.Find("momiji_rev_201805/geomGrp").gameObject;
+
+			PlayableCharacterData[] playerData = new PlayableCharacterData[2];
+			playerData[0] = kaedeCharData;
+			playerData[1] = mojimiCharData;
+
+			playerPref.PlayerData = playerData;
 		}
 
 		// Server + Client
@@ -518,27 +576,88 @@ namespace EliminatorKaedeMP
 		}
 
 		// Server + Client
-		private static void SetPlayerCharacter(PlayerPref playerPref, int characterID)
+		private void InitializeToiletEventManager(ToiletEventManager toiletMgr)
 		{
-			for (int i = 0; i < playerPref.PlayerData.Length; i++)
+			PlayerControl player = PlayerCtrl;
+			PlayerPref pref = player.Perf;
+
+			toiletMgr.GM = GameManager.Instance;
+			toiletMgr.Perf = pref;
+			toiletMgr.Player = player.gameObject;
+			toiletMgr.PE = player.GetComponent<Player_Equipment>();
+			toiletMgr.PC = player.GetComponent<PlayerControl>();
+			toiletMgr.PA = player.GetComponent<PlayerAct_00>();
+			toiletMgr.PH = player.GetComponent<Player_Helth>();
+			toiletMgr.EC = player.GetComponent<EventControl>();
+			toiletMgr.CS = pref.GetComponent<UI_pantu_option>();
+			toiletMgr.ClothSys = pref.GetComponent<UI_ClothSystem>();
+			toiletMgr.UI_behaviro = pref.GetComponent<UI_behaviorPanelManager>();
+			toiletMgr.GameCamera = pref.GameCamera;
+			for (int i = 0; i < toiletMgr.mizutamariList.Length; i++)
+				toiletMgr.mizutamariList[i] = null;
+		}
+
+		// Server - Sends the jump data of a player to the other clients
+		private void BroadcastCharChangeData(int characterID)
+		{
+			byte[] data = new byte[sizeof(int) * 3];
+			Utils.WriteInt(data, 0, (int)S2CPacketID.PlayerChangeChar);
+			Utils.WriteInt(data, 4, (int)ID);
+			Utils.WriteInt(data, 8, characterID);
+			BroadcastPacketExcludingSelf(data);
+		}
+
+		// Server + Client
+		private void SendCharChangeData(int characterID)
+		{
+			if (GameNet.IsServer)
 			{
-				for (int j = 0; j < playerPref.PlayerData[i].PlayerData.Length; j++)
+				BroadcastCharChangeData(characterID);
+			}
+			else
+			{
+				byte[] data = new byte[sizeof(int) * 2];
+				Utils.WriteInt(data, 0, (int)C2SPacketID.PlayerChangeChar);
+				Utils.WriteInt(data, 4, characterID);
+				Client.SendPacket(data);
+			}
+		}
+
+		// Server + Client - Replacement for PlayerPref.changePlayableCharacter
+		public void SetPlayerCharacter(int characterID)
+		{
+			PlayerPref pref = PlayerCtrl.Perf;
+
+			bool isLocalPlayer = PlayerCtrl == GameNet.GetLocalPlayer();
+			if (isLocalPlayer && (pref.SaveDataFail || !pref.R18))
+				characterID = 0;
+
+			for (int i = 0; i < pref.PlayerData.Length; i++)
+			{
+				bool active = i == characterID;
+				for (int j = 0; j < pref.PlayerData[i].PlayerData.Length; j++)
+					pref.PlayerData[i].PlayerData[j].SetActive(active);
+			}
+
+			if (PlayerCtrl.GetComponent<Player_Equipment>().initialize)
+				pref.changeWeponID(pref.Main_weponID);
+
+			pref.PlayerCharacterID = characterID;
+
+			if (isLocalPlayer)
+			{
+				SendCharChangeData(characterID);
+				if (!pref.SaveDataFail)
 				{
-					playerPref.PlayerData[i].PlayerData[j].SetActive(value: false);
+					SaveData.SetInt(pref.KEY_PlayerCharacterID, characterID);
+					SaveData.Save();
 				}
 			}
-
-			for (int k = 0; k < playerPref.PlayerData[characterID].PlayerData.Length; k++)
+			else
 			{
-				playerPref.PlayerData[characterID].PlayerData[k].SetActive(value: true);
+				if (PlayerCtrl.player_ini)
+					RepositionNametag();
 			}
-
-			if (playerPref.PlayerIncetance.GetComponent<Player_Equipment>().initialize)
-			{
-				playerPref.changeWeponID(playerPref.Main_weponID);
-			}
-
-			playerPref.PlayerCharacterID = characterID;
 		}
 
 		private void BeginJumpRoll(string stateName)
@@ -579,8 +698,6 @@ namespace EliminatorKaedeMP
 		// Server + Client - Runs when jump data is received
 		public void OnJumpData(int jumpType)
 		{
-			PlayerControl player = PlayerCtrl;
-
 			if (jumpType == 0)
 				return;
 
@@ -1214,6 +1331,12 @@ namespace EliminatorKaedeMP
 						pref.SyncAnimator[num8].SetLayerWeight(act01.cqb_0, 0f);
 				}
 			}
+		}
+
+		// Server + Client
+		private void RepositionNametag()
+		{
+			nicknameCanvasRect.SetParent((PlayerCtrl.Perf.PlayerCharacterID == 0 ? kaedeHeadObj : momijiHeadObj).transform);
 		}
 	}
 }

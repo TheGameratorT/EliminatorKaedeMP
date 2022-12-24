@@ -38,10 +38,15 @@ namespace EliminatorKaedeMP
 			return new BinaryFormatter().Deserialize(stream);
 		}
 
+		public static int GetCurrentScene()
+		{
+			return SceneManager.GetActiveScene().buildIndex;
+		}
+
 		// Returns true if the player is in Dam or Mission scene
 		public static bool IsInGame()
 		{
-			int sceneID = SceneManager.GetActiveScene().buildIndex;
+			int sceneID = GetCurrentScene();
 			return sceneID == SceneID.Dam || sceneID == SceneID.DebugStage;
 		}
 

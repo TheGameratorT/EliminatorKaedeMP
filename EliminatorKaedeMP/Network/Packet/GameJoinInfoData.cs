@@ -9,6 +9,9 @@ namespace EliminatorKaedeMP
         // The ID of our player
         public uint PlayerID;
 
+        // The current scene
+        public byte SceneID;
+
         // The information about the other players
         public List<PlayerInfoData> PlayerInfos;
     }

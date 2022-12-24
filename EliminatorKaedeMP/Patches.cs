@@ -24,6 +24,16 @@ namespace EliminatorKaedeMP
 			return !EKMPPlayer.IsNetPlayerCtx;
 		}
 
+		[PatchAttr(typeof(PlayerPref), "changePlayableCharacter", EPatchType.Prefix)]
+		static bool PlayerPref_changePlayableCharacter_Prefix(PlayerPref __instance, int Num)
+		{
+			EKMPPlayer player = GameNet.GetPlayer(__instance.PlayerIncetance?.GetComponent<PlayerControl>());
+			if (player == null)
+				return true;
+			player.SetPlayerCharacter(Num);
+			return false;
+		}
+
 		// UI_weponIcon ----------------------------------------------------------------
 
 		[PatchAttr(typeof(UI_weponIcon), "ChangeWepon", EPatchType.Prefix)]
@@ -102,6 +112,13 @@ namespace EliminatorKaedeMP
 
 
 		// ToiletEventManager ----------------------------------------------------------------
+
+		[PatchAttr(typeof(ToiletEventManager), "Start", EPatchType.Prefix)]
+		static bool ToiletEventManager_Start_Prefix(ToiletEventManager __instance)
+		{
+			// Only run if we are the local player
+			return !EKMPPlayer.IsNetPlayerCtx;
+		}
 
 		/*[PatchAttr(typeof(ToiletEventManager), "Show_IgnorUI", EPatchType.Prefix)]
 		static bool ToiletEventManager_Show_IgnorUI_Prefix(ToiletEventManager __instance)

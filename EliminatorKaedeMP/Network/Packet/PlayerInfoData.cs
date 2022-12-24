@@ -7,5 +7,6 @@ namespace EliminatorKaedeMP
 	{
 		public uint ID;
 		public string Name;
+		public byte CharacterID;
 	}
 }
