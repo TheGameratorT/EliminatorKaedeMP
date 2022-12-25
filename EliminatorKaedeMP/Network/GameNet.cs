@@ -41,7 +41,7 @@ namespace EliminatorKaedeMP
         {
             foreach (EKMPPlayer player in Players)
             {
-                if (player.ID == playerID)
+                if (player.Info.ID == playerID)
                     return player;
             }
             return null;
@@ -72,13 +72,27 @@ namespace EliminatorKaedeMP
             if (!IsNetGame())
                 return;
 
+            // We must make sure that the players are spawned if we enter a game
             foreach (EKMPPlayer player in Players)
-            {
-                if (player.ID == Player.ID)
-                    player.PlayerCtrl = GetLocalPlayer();
-                else
-                    player.TryInstantiateNetPlayer();
-            }
+				player.TryInstantiatePlayer();
         }
+
+        public static void InitLocalPlayerInfo(EKMPPlayerInfo playerInfo)
+		{
+			playerInfo.Name = Utils.GetPlayerName();
+			playerInfo.CharacterID = (byte)PlayerPref.instance.PlayerCharacterID;
+		}
+
+        // Creates an EKMPPlayer instance for our local player
+        public static void CreateSelfPlayer(NetClient netClient, uint playerID)
+		{
+			EKMPPlayerInfo playerInfo = new EKMPPlayerInfo();
+			playerInfo.ID = playerID;
+			InitLocalPlayerInfo(playerInfo);
+			EKMPPlayer mpPlayer = new EKMPPlayer();
+			Player = mpPlayer;
+			mpPlayer.Initialize(netClient, playerInfo); // Must come after GameNet.Player = player
+			Players.Add(mpPlayer);
+		}
     }
 }

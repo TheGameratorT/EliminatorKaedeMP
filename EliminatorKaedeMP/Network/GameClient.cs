@@ -32,7 +32,7 @@ namespace EliminatorKaedeMP
 			GameNet.IsClient = false;
 			foreach (EKMPPlayer player in GameNet.Players)
 			{
-				if (player.ID != GameNet.Player.ID)
+				if (player.Info.ID != GameNet.Player.Info.ID)
 				{
 					if (player.PlayerCtrl != null)
 						UnityEngine.Object.Destroy(player.PlayerCtrl.gameObject);
@@ -54,13 +54,15 @@ namespace EliminatorKaedeMP
 
 			Plugin.Log("Got valid server handshake confirmation, proceeding...");
 
+			// Send the player info, server will receive it on GameServer.OnPlayerInfoPacketReceived
+			EKMPPlayerInfo playerInfo = new EKMPPlayerInfo();
+			GameNet.InitLocalPlayerInfo(playerInfo);
 			byte[] bytes2;
 			using (MemoryStream stream = new MemoryStream())
 			{
 				using (BinaryWriter writer = new BinaryWriter(stream))
 				{
-					writer.Write(Utils.GetPlayerName());
-					writer.Write((byte) PlayerPref.instance.PlayerCharacterID);
+					playerInfo.Write(writer, false);
 				}
 				bytes2 = stream.ToArray();
 			}
@@ -82,29 +84,16 @@ namespace EliminatorKaedeMP
 				case S2CPacketID.GameJoinInfo:
 				{
 					// Receive all information about the game
-					stream.Position = 4;
-					GameJoinInfoData joinInfo = (GameJoinInfoData)Utils.Deserialize(stream);
+					GameJoinInfoData joinInfo = GameJoinInfoData.Read(reader);
 					uint playerID = joinInfo.PlayerID;
 					int sceneID = joinInfo.SceneID;
 					Plugin.CallOnMainThread(() =>
 					{
-						foreach (PlayerInfoData playerInfo in joinInfo.PlayerInfos)
+						GameNet.CreateSelfPlayer(netClient, playerID);
+						foreach (EKMPPlayerInfo playerInfo in joinInfo.PlayerInfos)
 						{
 							EKMPPlayer mpPlayer = new EKMPPlayer();
-							mpPlayer.ID = playerInfo.ID;
-							mpPlayer.Name = playerInfo.Name;
-							mpPlayer.netCtrl_characterID = playerInfo.CharacterID;
-							if (playerInfo.ID == playerID) // If this is our player instance
-							{
-								mpPlayer.Client = netClient;
-								mpPlayer.PlayerCtrl = GameNet.GetLocalPlayer();
-								GameNet.Player = mpPlayer;
-							}
-							else
-							{
-								mpPlayer.Client = null;
-								mpPlayer.TryInstantiateNetPlayer();
-							}
+							mpPlayer.Initialize(netClient, playerInfo);
 							GameNet.Players.Add(mpPlayer);
 						}
 						if (Utils.GetCurrentScene() != sceneID)
@@ -120,12 +109,13 @@ namespace EliminatorKaedeMP
 				}
 				case S2CPacketID.PlayerJoin:
 				{
-					EKMPPlayer mpPlayer = new EKMPPlayer();
-					mpPlayer.Client = null;
-					mpPlayer.ID = reader.ReadUInt32();
-					mpPlayer.Name = reader.ReadString();
-					mpPlayer.TryInstantiateNetPlayer();
-					Plugin.CallOnMainThread(() => mpPlayer.OnJoin());
+					EKMPPlayerInfo playerInfo = EKMPPlayerInfo.Read(reader, true);
+					Plugin.CallOnMainThread(() =>
+					{
+						EKMPPlayer mpPlayer = new EKMPPlayer();
+						mpPlayer.Initialize(null, playerInfo);
+						mpPlayer.OnJoin();
+					});
 					break;
 				}
 				case S2CPacketID.PlayerLeave:

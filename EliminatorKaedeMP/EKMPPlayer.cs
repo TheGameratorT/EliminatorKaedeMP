@@ -21,16 +21,14 @@ namespace EliminatorKaedeMP
 		private const float MovePacketSendInterval = 0.03f;
 		public static bool IsNetPlayerCtx = false;
 
-		public uint ID;
+		public EKMPPlayerInfo Info; // Stores all information about a player that must be synched between all clients
 		public NetClient Client = null;
-		public string Name;
 		public PlayerControl PlayerCtrl = null;
 
 		private RectTransform nicknameCanvasRect = null; // This will only exist for other players, not for ours
 		private bool netCtrl_isAiming = false; // For the local player this acts as a last state, like wasAimingInLastFrame
 		private bool netCtrl_isCrouching = false; // For the local player this acts as a last state, like wasCrouchingInLastFrame
 		private float netCtrl_lastMovePktTime = 0.0f;
-		public int netCtrl_characterID = 0; // Only used for storing the player character while the player hasn't spawned
 
 		private GameObject kaedeHeadObj = null; // Only set for non-local player
 		private GameObject momijiHeadObj = null; // Only set for non-local player
@@ -98,36 +96,47 @@ namespace EliminatorKaedeMP
 		{
 			GameNet.Players.Add(this);
 
-			Plugin.Log(Name + " has joined!");
+			Plugin.Log(Info.Name + " has joined!");
 
 			if (GameNet.IsServer)
 			{
-				GameNet.Server.NotifyPlayerJoined(this); // This is sent to everyone, except the player who joined
-
-				// This is sent to the player who joined, unless that player is also the server
-				GameJoinInfoData joinData;
-				joinData.PlayerID = ID;
-				joinData.SceneID = (byte) Utils.GetCurrentScene();
-				joinData.PlayerInfos = new List<PlayerInfoData>();
-				foreach (EKMPPlayer mpPlayer in GameNet.Players)
-				{
-					PlayerInfoData playerInfo;
-					playerInfo.ID = mpPlayer.ID;
-					playerInfo.Name = mpPlayer.Name;
-					playerInfo.CharacterID = (byte)((PlayerCtrl == null) ? netCtrl_characterID : PlayerCtrl.Perf.PlayerCharacterID);
-					joinData.PlayerInfos.Add(playerInfo);
-				}
+				// This is sent to everyone, except the player who joined
 				byte[] bytes;
 				using (MemoryStream stream = new MemoryStream())
 				{
 					using (BinaryWriter writer = new BinaryWriter(stream))
 					{
-						writer.Write((int)S2CPacketID.GameJoinInfo);
-						Utils.Serialize(writer, joinData);
+						writer.Write((int)S2CPacketID.PlayerJoin);
+						Info.Write(writer, true);
 					}
 					bytes = stream.ToArray();
 				}
-				Client.SendPacket(bytes);
+				BroadcastPacket(bytes);
+
+				// This is sent to the player who joined, unless that player is also the server
+				GameJoinInfoData joinData = new GameJoinInfoData();
+				joinData.PlayerID = Info.ID;
+				joinData.SceneID = (byte) Utils.GetCurrentScene();
+				joinData.PlayerInfos = new EKMPPlayerInfo[GameNet.Players.Count - 1];
+				int i = 0;
+				foreach (EKMPPlayer mpPlayer in GameNet.Players)
+				{
+					if (mpPlayer == this)
+						continue;
+					joinData.PlayerInfos[i] = mpPlayer.Info;
+					i++;
+				}
+				byte[] bytes2;
+				using (MemoryStream stream = new MemoryStream())
+				{
+					using (BinaryWriter writer = new BinaryWriter(stream))
+					{
+						writer.Write((int)S2CPacketID.GameJoinInfo);
+						joinData.Write(writer);
+					}
+					bytes2 = stream.ToArray();
+				}
+				Client.SendPacket(bytes2);
 			}
 		}
 
@@ -142,130 +151,39 @@ namespace EliminatorKaedeMP
 				UnityEngine.Object.Destroy(PlayerCtrl.Perf.gameObject);
 			}
 
-			Plugin.Log(Name + " has left!");
+			Plugin.Log(Info.Name + " has left!");
 
 			if (GameNet.IsServer)
 			{
 				byte[] bytes = new byte[8];
 				Utils.WriteInt(bytes, 0, (int)S2CPacketID.PlayerLeave);
-				Utils.WriteInt(bytes, 4, (int)ID);
+				Utils.WriteInt(bytes, 4, (int)Info.ID);
 				GameNet.Server.BroadcastPacket(bytes);
 			}
 		}
 
-		// Server - Similar to GameServer.BroadcastPacket but doesn't send the packet to this player instance's client
-		public void BroadcastPacketExcludingSelf(byte[] bytes)
+		#region Initialize
+
+		// Server + Client - Intializes the multiplayer player and tries to create a player if in game
+		public void Initialize(NetClient client, EKMPPlayerInfo playerInfo)
 		{
-			foreach (EKMPPlayer player in GameNet.Players)
-			{
-				if (player.ID != GameNet.Player.ID && player != this)
-					player.Client.SendPacket(bytes);
-			}
-		}
-
-		// Server + Client - Runs when movement data is received
-		public void OnMoveData(PlayerMoveData moveData)
-		{
-			PlayerCtrl.transform.position = moveData.GetPlayerPos();
-			PlayerCtrl.transform.rotation = moveData.GetPlayerRot();
-			PlayerCtrl.input_h = moveData.InputH;
-			PlayerCtrl.input_v = moveData.InputV;
-			PlayerCtrl.float_h = moveData.FloatH;
-			PlayerCtrl.float_v = moveData.FloatV;
-		}
-
-		// Server - Sends the movement data of a player to the other clients
-		private void BroadcastMoveData(PlayerMoveData moveData)
-		{
-			byte[] bytes;
-			using (MemoryStream stream = new MemoryStream())
-			{
-				using (BinaryWriter writer = new BinaryWriter(stream))
-				{
-					writer.Write((int)S2CPacketID.PlayerMove);
-					writer.Write(ID);
-					Utils.Serialize(writer, moveData);
-				}
-				bytes = stream.ToArray();
-			}
-			BroadcastPacketExcludingSelf(bytes);
-		}
-
-		// Server + Client - Sends the movement data to the server (only the local player should run this)
-		private void SendMoveData()
-		{
-			PlayerMoveData moveData = new PlayerMoveData();
-			moveData.SetPlayerPos(PlayerCtrl.transform.position);
-			moveData.SetPlayerRot(PlayerCtrl.transform.rotation);
-			moveData.InputH = PlayerCtrl.input_h;
-			moveData.InputV = PlayerCtrl.input_v;
-			moveData.FloatH = PlayerCtrl.float_h;
-			moveData.FloatV = PlayerCtrl.float_v;
-
-			if (GameNet.IsServer)
-			{
-				// If we are a server, there is not point in sending the data to ourselves, just send it to the other clients
-				BroadcastMoveData(moveData);
-			}
-			else
-			{
-				// But if we are a client, we must send it to the server so that it will broadcast it to other clients
-				using (MemoryStream stream = new MemoryStream())
-				{
-					using (BinaryWriter writer = new BinaryWriter(stream))
-					{
-						writer.Write((int)C2SPacketID.PlayerMove);
-						Utils.Serialize(writer, moveData);
-					}
-					Client.SendPacket(stream.ToArray());
-				}
-			}
-		}
-
-		// Client - Extension of PlayerControl.Update, runs after
-		public void Update()
-		{
-			if (PlayerCtrl == null)
-				return;
-
-			if (GameNet.GetLocalPlayer() == PlayerCtrl)
-			{
-				netCtrl_lastMovePktTime += Time.deltaTime;
-				if (netCtrl_lastMovePktTime >= MovePacketSendInterval)
-				{
-					SendMoveData();
-					netCtrl_lastMovePktTime = 0;
-				}
-
-				bool isAiming = PlayerCtrl.IsAiming();
-				if (netCtrl_isAiming != isAiming)
-				{
-					SendControlData(CtrlKey.Aim, isAiming);
-					netCtrl_isAiming = isAiming;
-				}
-
-				bool isCrouching = PlayerCtrl.IsCrouch();
-				if (netCtrl_isCrouching != isCrouching)
-				{
-					SendControlData(CtrlKey.Crouch, isCrouching);
-					netCtrl_isCrouching = isCrouching;
-				}
-			}
-			else
-			{
-				Vector3 nametagDirection = (PlayerPref.instance.MainCamera.transform.position - nicknameCanvasRect.position).normalized;
-				nicknameCanvasRect.rotation = Quaternion.LookRotation(nametagDirection);
-			}
+			Info = playerInfo;
+			Client = client;
+			TryInstantiatePlayer();
 		}
 
 		// Server + Client - Tries to create a player if in game
-		public PlayerControl TryInstantiateNetPlayer()
+		public void TryInstantiatePlayer()
 		{
-			if (!Utils.IsInGame())
-				return null;
 			PlayerControl player = GameNet.GetLocalPlayer();
 			if (player == null)
-				return null;
+				return;
+
+			if (Info.ID == GameNet.Player.Info.ID) // If local player
+			{
+				PlayerCtrl = player;
+				return;
+			}
 
 			IsNetPlayerCtx = true;
 			PlayerCtrl = UnityEngine.Object.Instantiate(player.gameObject).GetComponent<PlayerControl>();
@@ -278,8 +196,6 @@ namespace EliminatorKaedeMP
 				Plugin.Log(ex);
 			}
 			IsNetPlayerCtx = false;
-
-			return PlayerCtrl;
 		}
 
 		// Server + Client - Initializes the player in a way that allows for it to be controlled by our network manager
@@ -345,7 +261,7 @@ namespace EliminatorKaedeMP
 			player.Gimic = PlayerControl.StageGimic.NULL;
 			player.FPV_target = null;
 			player.GroundIK_list = GroundIK_list;
-			SetPlayerCharacter(netCtrl_characterID);
+			SetPlayerCharacter(Info.CharacterID);
 			InitializePlayerEquipment(playerEquipment, playerPref);
 			InitializePlayerAct00(player);
 			InitializePlayerAct01(playerAct01, playerPref, keyInput);
@@ -374,7 +290,7 @@ namespace EliminatorKaedeMP
 			Canvas nicknameCanvas = nicknameCanvasObj.AddComponent<Canvas>();
 			nicknameCanvasRect = (RectTransform)nicknameCanvasObj.transform;
 			nicknameCanvas.renderMode = RenderMode.WorldSpace;
-			nicknameCanvasRect.SetParent(kaedeHeadObj.transform);
+			RepositionNametag();
 			nicknameCanvasRect.localPosition = new Vector3(0.0f, 0.28f, 0.0f);
 			nicknameCanvasRect.localRotation = Quaternion.identity;
 			nicknameCanvasRect.localScale = new Vector3(0.0025f, 0.0025f, 1.0f);
@@ -385,7 +301,7 @@ namespace EliminatorKaedeMP
 			Text nicknameText = nicknameTextObj.AddComponent<Text>();
 			nicknameTextObj.AddComponent<Outline>();
 			RectTransform nicknameTextRect = (RectTransform)nicknameTextObj.transform;
-			nicknameText.text = Name;
+			nicknameText.text = Info.Name;
 			nicknameText.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
 			nicknameText.fontSize = 30;
 			nicknameText.alignment = TextAnchor.MiddleCenter;
@@ -402,12 +318,12 @@ namespace EliminatorKaedeMP
 		// Server + Client
 		private PlayerPref CreateNetPlayerPref()
 		{
-			GameObject playerPrefObj = new GameObject("PlayerPref_" + ID);
+			GameObject playerPrefObj = new GameObject("PlayerPref_" + Info.ID);
 			EKMPPlayerPref playerPref = playerPrefObj.AddComponent<EKMPPlayerPref>();
 			PlayerCtrl.Perf = playerPref;
 
 			// Create a virtual camera used only for aim and rotation purposes
-			GameObject camera = new GameObject("NetCamera_" + ID);
+			GameObject camera = new GameObject("NetCamera_" + Info.ID);
 			camera.AddComponent<Camera>().enabled = false; // The component only exists to avoid reference errors
 
 			// Create a new PlayerData instance
@@ -430,6 +346,7 @@ namespace EliminatorKaedeMP
 			return playerPref;
 		}
 
+		// Server + Client
 		private void CreatePlayerData()
 		{
 			PlayerPref playerPref = PlayerCtrl.Perf;
@@ -597,14 +514,121 @@ namespace EliminatorKaedeMP
 				toiletMgr.mizutamariList[i] = null;
 		}
 
-		// Server - Sends the jump data of a player to the other clients
+		#endregion
+
+		// Server - Similar to GameServer.BroadcastPacket but doesn't send the packet to this player instance's client
+		public void BroadcastPacket(byte[] bytes)
+		{
+			foreach (EKMPPlayer player in GameNet.Players)
+			{
+				if (player.Info.ID != GameNet.Player.Info.ID && player != this)
+					player.Client.SendPacket(bytes);
+			}
+		}
+
+		// Server + Client - Runs when movement data is received
+		public void OnMoveData(PlayerMoveData moveData)
+		{
+			PlayerCtrl.transform.position = moveData.GetPlayerPos();
+			PlayerCtrl.transform.rotation = moveData.GetPlayerRot();
+			PlayerCtrl.input_h = moveData.InputH;
+			PlayerCtrl.input_v = moveData.InputV;
+			PlayerCtrl.float_h = moveData.FloatH;
+			PlayerCtrl.float_v = moveData.FloatV;
+		}
+
+		// Server - Sends the movement data of a player to the other clients
+		private void BroadcastMoveData(PlayerMoveData moveData)
+		{
+			byte[] bytes;
+			using (MemoryStream stream = new MemoryStream())
+			{
+				using (BinaryWriter writer = new BinaryWriter(stream))
+				{
+					writer.Write((int)S2CPacketID.PlayerMove);
+					writer.Write(Info.ID);
+					Utils.Serialize(writer, moveData);
+				}
+				bytes = stream.ToArray();
+			}
+			BroadcastPacket(bytes);
+		}
+
+		// Server + Client - Sends the movement data to the server (only the local player should run this)
+		private void SendMoveData()
+		{
+			PlayerMoveData moveData = new PlayerMoveData();
+			moveData.SetPlayerPos(PlayerCtrl.transform.position);
+			moveData.SetPlayerRot(PlayerCtrl.transform.rotation);
+			moveData.InputH = PlayerCtrl.input_h;
+			moveData.InputV = PlayerCtrl.input_v;
+			moveData.FloatH = PlayerCtrl.float_h;
+			moveData.FloatV = PlayerCtrl.float_v;
+
+			if (GameNet.IsServer)
+			{
+				// If we are a server, there is not point in sending the data to ourselves, just send it to the other clients
+				BroadcastMoveData(moveData);
+			}
+			else
+			{
+				// But if we are a client, we must send it to the server so that it will broadcast it to other clients
+				using (MemoryStream stream = new MemoryStream())
+				{
+					using (BinaryWriter writer = new BinaryWriter(stream))
+					{
+						writer.Write((int)C2SPacketID.PlayerMove);
+						Utils.Serialize(writer, moveData);
+					}
+					Client.SendPacket(stream.ToArray());
+				}
+			}
+		}
+
+		// Client - Extension of PlayerControl.Update, runs after
+		public void Update()
+		{
+			if (PlayerCtrl == null)
+				return;
+
+			if (GameNet.GetLocalPlayer() == PlayerCtrl)
+			{
+				netCtrl_lastMovePktTime += Time.deltaTime;
+				if (netCtrl_lastMovePktTime >= MovePacketSendInterval)
+				{
+					SendMoveData();
+					netCtrl_lastMovePktTime = 0;
+				}
+
+				bool isAiming = PlayerCtrl.IsAiming();
+				if (netCtrl_isAiming != isAiming)
+				{
+					SendControlData(CtrlKey.Aim, isAiming);
+					netCtrl_isAiming = isAiming;
+				}
+
+				bool isCrouching = PlayerCtrl.IsCrouch();
+				if (netCtrl_isCrouching != isCrouching)
+				{
+					SendControlData(CtrlKey.Crouch, isCrouching);
+					netCtrl_isCrouching = isCrouching;
+				}
+			}
+			else
+			{
+				Vector3 nametagDirection = (PlayerPref.instance.MainCamera.transform.position - nicknameCanvasRect.position).normalized;
+				nicknameCanvasRect.rotation = Quaternion.LookRotation(nametagDirection);
+			}
+		}
+
+		// Server
 		private void BroadcastCharChangeData(int characterID)
 		{
 			byte[] data = new byte[sizeof(int) * 3];
 			Utils.WriteInt(data, 0, (int)S2CPacketID.PlayerChangeChar);
-			Utils.WriteInt(data, 4, (int)ID);
+			Utils.WriteInt(data, 4, (int)Info.ID);
 			Utils.WriteInt(data, 8, characterID);
-			BroadcastPacketExcludingSelf(data);
+			BroadcastPacket(data);
 		}
 
 		// Server + Client
@@ -643,6 +667,7 @@ namespace EliminatorKaedeMP
 				pref.changeWeponID(pref.Main_weponID);
 
 			pref.PlayerCharacterID = characterID;
+			Info.CharacterID = (byte)characterID;
 
 			if (isLocalPlayer)
 			{
@@ -728,9 +753,9 @@ namespace EliminatorKaedeMP
 		{
 			byte[] jumpData = new byte[sizeof(int) * 3];
 			Utils.WriteInt(jumpData, 0, (int)S2CPacketID.PlayerJump);
-			Utils.WriteInt(jumpData, 4, (int)ID);
+			Utils.WriteInt(jumpData, 4, (int)Info.ID);
 			Utils.WriteInt(jumpData, 8, jumpType);
-			BroadcastPacketExcludingSelf(jumpData);
+			BroadcastPacket(jumpData);
 		}
 
 		// Server + Client - Sends the jump data to the server (only the local player should run this)
@@ -856,10 +881,10 @@ namespace EliminatorKaedeMP
 		{
 			byte[] jumpData = new byte[sizeof(int) * 4];
 			Utils.WriteInt(jumpData, 0, (int)S2CPacketID.PlayerCtrlKey);
-			Utils.WriteInt(jumpData, 4, (int)ID);
+			Utils.WriteInt(jumpData, 4, (int)Info.ID);
 			Utils.WriteInt(jumpData, 8, (int)key);
 			Utils.WriteInt(jumpData, 12, isDown ? 1 : 0);
-			BroadcastPacketExcludingSelf(jumpData);
+			BroadcastPacket(jumpData);
 		}
 
 		// Server + Client - Sends the key data to the server (only the local player should run this)
@@ -1095,9 +1120,9 @@ namespace EliminatorKaedeMP
 		{
 			byte[] data = new byte[sizeof(int) * 3];
 			Utils.WriteInt(data, 0, (int)S2CPacketID.PlayerKnifeUse);
-			Utils.WriteInt(data, 4, (int)ID);
+			Utils.WriteInt(data, 4, (int)Info.ID);
 			Utils.WriteInt(data, 8, step);
-			BroadcastPacketExcludingSelf(data);
+			BroadcastPacket(data);
 		}
 
 		// Server + Client - Sends the knife use data to the server (only the local player should run this)
@@ -1336,7 +1361,7 @@ namespace EliminatorKaedeMP
 		// Server + Client
 		private void RepositionNametag()
 		{
-			nicknameCanvasRect.SetParent((PlayerCtrl.Perf.PlayerCharacterID == 0 ? kaedeHeadObj : momijiHeadObj).transform);
+			nicknameCanvasRect.SetParent((Info.CharacterID == 0 ? kaedeHeadObj : momijiHeadObj).transform);
 		}
 	}
 }

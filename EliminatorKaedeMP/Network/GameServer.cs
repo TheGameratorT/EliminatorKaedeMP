@@ -16,8 +16,10 @@ namespace EliminatorKaedeMP
             netServer.OnClientConnected = OnClientConnected;
             Plugin.Log("The server is running on port: " + port);
 
-            CreateSelfPlayer(); // Create our own player
-        }
+            // Create our player
+            GameNet.CreateSelfPlayer(null, nextPlayerID);
+			nextPlayerID++;
+		}
 
         public void Stop()
         {
@@ -49,25 +51,20 @@ namespace EliminatorKaedeMP
 
         private void OnPlayerInfoPacketReceived(NetClient netClient, byte[] bytes)
         {
-            string playerName;
-            int characterID;
+            EKMPPlayerInfo playerInfo;
             using (MemoryStream stream = new MemoryStream(bytes))
             {
                 using (BinaryReader reader = new BinaryReader(stream))
                 {
-                    playerName = reader.ReadString();
-					characterID = reader.ReadByte();
+					playerInfo = EKMPPlayerInfo.Read(reader, false);
 				}
             }
 
             Plugin.CallOnMainThread(() =>
             {
-                EKMPPlayer mpPlayer = new EKMPPlayer();
-                mpPlayer.ID = nextPlayerID;
-                mpPlayer.Client = netClient;
-                mpPlayer.Name = playerName;
-                mpPlayer.netCtrl_characterID = characterID;
-				mpPlayer.TryInstantiateNetPlayer();
+				playerInfo.ID = nextPlayerID;
+				EKMPPlayer mpPlayer = new EKMPPlayer();
+				mpPlayer.Initialize(netClient, playerInfo);
 
                 nextPlayerID++;
 
@@ -84,40 +81,12 @@ namespace EliminatorKaedeMP
             });
         }
 
-        private void CreateSelfPlayer()
-        {
-            EKMPPlayer mpPlayer = new EKMPPlayer();
-            mpPlayer.Client = null;
-            mpPlayer.PlayerCtrl = GameNet.GetLocalPlayer();
-            mpPlayer.Name = Utils.GetPlayerName();
-            mpPlayer.ID = nextPlayerID;
-            nextPlayerID++;
-            GameNet.Player = mpPlayer;
-            GameNet.Players.Add(mpPlayer);
-        }
-
-        public void NotifyPlayerJoined(EKMPPlayer playerWhoJoined)
-        {
-            byte[] bytes;
-            using (MemoryStream stream = new MemoryStream())
-            {
-                using (BinaryWriter writer = new BinaryWriter(stream))
-                {
-                    writer.Write((int)S2CPacketID.PlayerJoin);
-                    writer.Write(playerWhoJoined.ID);
-                    writer.Write(playerWhoJoined.Name);
-                }
-                bytes = stream.ToArray();
-            }
-            playerWhoJoined.BroadcastPacketExcludingSelf(bytes);
-        }
-
         // Sends a packet to all the players, except to the server because it already has the data
         public void BroadcastPacket(byte[] bytes)
         {
             foreach (EKMPPlayer player in GameNet.Players)
             {
-                if (player.ID != GameNet.Player.ID)
+                if (player.Info.ID != GameNet.Player.Info.ID)
                     player.Client.SendPacket(bytes);
             }
         }

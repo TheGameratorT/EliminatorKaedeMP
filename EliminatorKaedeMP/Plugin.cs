@@ -98,11 +98,12 @@ namespace EliminatorKaedeMP
 			if (Input.GetKeyDown(KeyCode.K))
 			{
 				Log("Plugin -> TryInstantiateNetPlayer");
+				EKMPPlayerInfo playerInfo = new EKMPPlayerInfo();
+				playerInfo.ID = 1;
+				playerInfo.Name = "Test Player";
+				playerInfo.CharacterID = 0;
 				EKMPPlayer player = new EKMPPlayer();
-				player.Client = null;
-				player.Name = "Test Player";
-				player.ID = 1;
-				player.TryInstantiateNetPlayer();
+				player.Initialize(null, playerInfo);
 			}
 		}
 
