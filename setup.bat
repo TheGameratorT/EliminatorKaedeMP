@@ -14,7 +14,7 @@ call :doCopy Assembly-CSharp-firstpass.dll
 if %errorlevel% neq 0 goto fail
 call :doCopy UnityEngine.UI.dll
 if %errorlevel% neq 0 goto fail
-cd %root%
+cd "%root%"
 echo Project ready.
 pause
 exit /b 0
@@ -37,7 +37,7 @@ echo Could not find "%mngdir%".
 echo Are you sure you have the correct game version?
 goto fail
 :fail
-cd %root%
+cd "%root%"
 echo Project not ready.
 pause
 exit /b 1

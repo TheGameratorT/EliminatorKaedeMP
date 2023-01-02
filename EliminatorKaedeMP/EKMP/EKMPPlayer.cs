@@ -2,7 +2,6 @@
 using K_PlayerControl.UI;
 using RootMotion.FinalIK;
 using System;
-using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 using UnityEngine.UI;
@@ -10,7 +9,7 @@ using UnityEngine.UI;
 namespace EliminatorKaedeMP
 {
 	// This is our multiplayer handle for the player
-	public class EKMPPlayer
+	public partial class EKMPPlayer
 	{
 		public enum CtrlKey
 		{
@@ -46,8 +45,7 @@ namespace EliminatorKaedeMP
 				{
 				case C2SPacketID.PlayerMove:
 				{
-					stream.Position = 4;
-					PlayerMoveData playerMoveData = (PlayerMoveData)Utils.Deserialize(stream);
+					PlayerMoveData playerMoveData = PlayerMoveData.Read(reader);
 					BroadcastMoveData(playerMoveData);
 					Plugin.CallOnMainThread(() => OnMoveData(playerMoveData));
 					break;
@@ -144,12 +142,7 @@ namespace EliminatorKaedeMP
 		public void OnDisconnect()
 		{
 			GameNet.Players.Remove(this);
-			if (PlayerCtrl != null)
-			{
-				UnityEngine.Object.Destroy(PlayerCtrl.gameObject);
-				UnityEngine.Object.Destroy(PlayerCtrl.Perf.MainCamera.gameObject);
-				UnityEngine.Object.Destroy(PlayerCtrl.Perf.gameObject);
-			}
+			DestroyObjects();
 
 			Plugin.Log(Info.Name + " has left!");
 
@@ -163,6 +156,18 @@ namespace EliminatorKaedeMP
 		}
 
 		#region Initialize
+
+		// Server + Client - Destroys all the objects associated to this multiplayer handle
+		public void DestroyObjects()
+		{
+			if (PlayerCtrl != null)
+			{
+				UnityEngine.Object.Destroy(PlayerCtrl.Perf.MainCamera.gameObject);
+				UnityEngine.Object.Destroy(PlayerCtrl.Perf.gameObject);
+				UnityEngine.Object.Destroy(PlayerCtrl.gameObject);
+				PlayerCtrl = null;
+			}
+		}
 
 		// Server + Client - Intializes the multiplayer player and tries to create a player if in game
 		public void Initialize(NetClient client, EKMPPlayerInfo playerInfo)
@@ -326,6 +331,9 @@ namespace EliminatorKaedeMP
 			GameObject camera = new GameObject("NetCamera_" + Info.ID);
 			camera.AddComponent<Camera>().enabled = false; // The component only exists to avoid reference errors
 
+			// Create a new ClothSystem instance
+			ClothSystem_Initialize(playerPrefObj.AddComponent<UI_ClothSystem>());
+
 			// Create a new PlayerData instance
 			CreatePlayerData();
 
@@ -340,9 +348,9 @@ namespace EliminatorKaedeMP
 			playerPref.sub_weponList = PlayerPref.Instance.sub_weponList;
 			playerPref.wepon_static_List = PlayerPref.Instance.wepon_static_List; // might need custom dummy
 			playerPref.LayerMaskInfo = PlayerPref.Instance.LayerMaskInfo;
+
 			playerPrefObj.AddComponent<UI_weponIcon>();
-			ToiletEventManager toiletMgr = playerPrefObj.AddComponent<ToiletEventManager>();
-			InitializeToiletEventManager(toiletMgr);
+			InitializeToiletEventManager(playerPrefObj.AddComponent<ToiletEventManager>());
 			return playerPref;
 		}
 
@@ -360,6 +368,7 @@ namespace EliminatorKaedeMP
 			kaedeCharData.PlayerData = new GameObject[2];
 			kaedeCharData.PlayerData[0] = playerTransform.Find("Root/DEMO_Pelvis/DEMO_Spine/DEMO_Spine1/Spine_1_5/DEMO_Spine2/DEMO_Spine3/DEMO_Neck/DEMO_Neck2/DEMO_Head").gameObject;
 			kaedeCharData.PlayerData[1] = playerTransform.Find("geomGrp").gameObject;
+			ClothPurchase_Initialize(kaedeCharDataObj.AddComponent<EKMP_UI_cloth_Purchase>(), 0);
 
 			GameObject mojimiCharDataObj = UnityEngine.Object.Instantiate(ogPlayerPref.PlayerData[1].gameObject);
 			mojimiCharDataObj.transform.parent = playerPref.transform;
@@ -368,6 +377,7 @@ namespace EliminatorKaedeMP
 			mojimiCharData.PlayerData = new GameObject[2];
 			mojimiCharData.PlayerData[0] = playerTransform.Find("momiji_rev_201805/Root").gameObject;
 			mojimiCharData.PlayerData[1] = playerTransform.Find("momiji_rev_201805/geomGrp").gameObject;
+			ClothPurchase_Initialize(mojimiCharDataObj.AddComponent<EKMP_UI_cloth_Purchase>(), 1);
 
 			PlayableCharacterData[] playerData = new PlayableCharacterData[2];
 			playerData[0] = kaedeCharData;
@@ -506,7 +516,7 @@ namespace EliminatorKaedeMP
 			toiletMgr.PA = player.GetComponent<PlayerAct_00>();
 			toiletMgr.PH = player.GetComponent<Player_Helth>();
 			toiletMgr.EC = player.GetComponent<EventControl>();
-			toiletMgr.CS = pref.GetComponent<UI_pantu_option>();
+			toiletMgr.CS = null;
 			toiletMgr.ClothSys = pref.GetComponent<UI_ClothSystem>();
 			toiletMgr.UI_behaviro = pref.GetComponent<UI_behaviorPanelManager>();
 			toiletMgr.GameCamera = pref.GameCamera;
@@ -529,8 +539,8 @@ namespace EliminatorKaedeMP
 		// Server + Client - Runs when movement data is received
 		public void OnMoveData(PlayerMoveData moveData)
 		{
-			PlayerCtrl.transform.position = moveData.GetPlayerPos();
-			PlayerCtrl.transform.rotation = moveData.GetPlayerRot();
+			PlayerCtrl.transform.position = moveData.PlayerPos;
+			PlayerCtrl.transform.rotation = moveData.PlayerRot;
 			PlayerCtrl.input_h = moveData.InputH;
 			PlayerCtrl.input_v = moveData.InputV;
 			PlayerCtrl.float_h = moveData.FloatH;
@@ -547,7 +557,7 @@ namespace EliminatorKaedeMP
 				{
 					writer.Write((int)S2CPacketID.PlayerMove);
 					writer.Write(Info.ID);
-					Utils.Serialize(writer, moveData);
+					moveData.Write(writer);
 				}
 				bytes = stream.ToArray();
 			}
@@ -558,8 +568,8 @@ namespace EliminatorKaedeMP
 		private void SendMoveData()
 		{
 			PlayerMoveData moveData = new PlayerMoveData();
-			moveData.SetPlayerPos(PlayerCtrl.transform.position);
-			moveData.SetPlayerRot(PlayerCtrl.transform.rotation);
+			moveData.PlayerPos = PlayerCtrl.transform.position;
+			moveData.PlayerRot = PlayerCtrl.transform.rotation;
 			moveData.InputH = PlayerCtrl.input_h;
 			moveData.InputV = PlayerCtrl.input_v;
 			moveData.FloatH = PlayerCtrl.float_h;
@@ -578,7 +588,7 @@ namespace EliminatorKaedeMP
 					using (BinaryWriter writer = new BinaryWriter(stream))
 					{
 						writer.Write((int)C2SPacketID.PlayerMove);
-						Utils.Serialize(writer, moveData);
+						moveData.Write(writer);
 					}
 					Client.SendPacket(stream.ToArray());
 				}
@@ -1358,10 +1368,17 @@ namespace EliminatorKaedeMP
 			}
 		}
 
-		// Server + Client
+		// Server + Client - Updates the nametag parent to be the corresponding character's head
 		private void RepositionNametag()
 		{
 			nicknameCanvasRect.SetParent((Info.CharacterID == 0 ? kaedeHeadObj : momijiHeadObj).transform);
+		}
+
+		// Server + Client - Returns a child game object of this player that corresponds to local player one
+		private GameObject FindGameObjectFromLocal(GameObject obj)
+		{
+			string objPath = Utils.GetGameObjectPath(obj).Substring(27);
+			return PlayerCtrl.transform.Find(objPath).gameObject;
 		}
 	}
 }

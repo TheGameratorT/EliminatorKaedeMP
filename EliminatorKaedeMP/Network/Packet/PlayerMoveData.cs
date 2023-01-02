@@ -1,19 +1,12 @@
-﻿using System;
+﻿using System.IO;
 using UnityEngine;
 
 namespace EliminatorKaedeMP
 {
-	[Serializable]
-	public struct PlayerMoveData
+	public class PlayerMoveData
 	{
-		public float PlayerPosX;
-		public float PlayerPosY;
-		public float PlayerPosZ;
-
-		public float PlayerRotX;
-		public float PlayerRotY;
-		public float PlayerRotZ;
-		public float PlayerRotW;
+		public Vector3 PlayerPos;
+		public Quaternion PlayerRot;
 
 		public bool InputH;
 		public bool InputV;
@@ -22,29 +15,26 @@ namespace EliminatorKaedeMP
 		//public Vector3 cameraPos;
 		//public Quaternion cameraRot;
 
-		public void SetPlayerPos(Vector3 pos)
+		public void Write(BinaryWriter writer)
 		{
-			PlayerPosX = pos.x;
-			PlayerPosY = pos.y;
-			PlayerPosZ = pos.z;
+			writer.Write(PlayerPos);
+			writer.Write(PlayerRot);
+			writer.Write(InputH);
+			writer.Write(InputV);
+			writer.Write(FloatH);
+			writer.Write(FloatV);
 		}
 
-		public Vector3 GetPlayerPos()
+		public static PlayerMoveData Read(BinaryReader reader)
 		{
-			return new Vector3(PlayerPosX, PlayerPosY, PlayerPosZ);
-		}
-
-		public void SetPlayerRot(Quaternion rot)
-		{
-			PlayerRotX = rot.x;
-			PlayerRotY = rot.y;
-			PlayerRotZ = rot.z;
-			PlayerRotW = rot.w;
-		}
-
-		public Quaternion GetPlayerRot()
-		{
-			return new Quaternion(PlayerRotX, PlayerRotY, PlayerRotZ, PlayerRotW);
+			PlayerMoveData moveData = new PlayerMoveData();
+			moveData.PlayerPos = reader.ReadVector3();
+			moveData.PlayerRot = reader.ReadQuaternion();
+			moveData.InputH = reader.ReadBoolean();
+			moveData.InputV = reader.ReadBoolean();
+			moveData.FloatH = reader.Read();
+			moveData.FloatV = reader.Read();
+			return moveData;
 		}
 	}
 }

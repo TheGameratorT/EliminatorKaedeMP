@@ -1,5 +1,4 @@
-﻿using K_PlayerControl;
-using System;
+﻿using System;
 using System.IO;
 using System.Text;
 using UnityEngine.SceneManagement;
@@ -33,10 +32,7 @@ namespace EliminatorKaedeMP
 			foreach (EKMPPlayer player in GameNet.Players)
 			{
 				if (player.Info.ID != GameNet.Player.Info.ID)
-				{
-					if (player.PlayerCtrl != null)
-						UnityEngine.Object.Destroy(player.PlayerCtrl.gameObject);
-				}
+					player.DestroyObjects();
 			}
 			GameNet.Player = null;
 			GameNet.Players.Clear();

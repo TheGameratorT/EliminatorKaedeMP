@@ -1,6 +1,7 @@
 ﻿using K_PlayerControl;
 using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
+using UnityEngine;
 using UnityEngine.SceneManagement;
 
 namespace EliminatorKaedeMP
@@ -54,6 +55,17 @@ namespace EliminatorKaedeMP
 		public static string GetPlayerName()
 		{
 			return PlayerPref.instance.c_PlayerName;
+		}
+
+		public static string GetGameObjectPath(GameObject obj)
+		{
+			string path = "/" + obj.name;
+			while (obj.transform.parent != null)
+			{
+				obj = obj.transform.parent.gameObject;
+				path = "/" + obj.name + path;
+			}
+			return path;
 		}
 	}
 }

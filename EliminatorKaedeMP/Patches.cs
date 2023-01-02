@@ -120,10 +120,70 @@ namespace EliminatorKaedeMP
 			return !EKMPPlayer.IsNetPlayerCtx;
 		}
 
+		[PatchAttr(typeof(ToiletEventManager), "isOutPantu", EPatchType.Prefix)]
+		static bool ToiletEventManager_isOutPantu_Prefix(ToiletEventManager __instance, ref bool __result)
+		{
+			if (__instance.CS == null)
+			{
+				__result = false;
+				return false;
+			}
+			return true;
+		}
+
+		[PatchAttr(typeof(ToiletEventManager), "isSetPantu", EPatchType.Prefix)]
+		static bool ToiletEventManager_isSetPantu_Prefix(ToiletEventManager __instance, ref bool __result)
+		{
+			if (__instance.CS == null)
+			{
+				__result = true;
+				return false;
+			}
+			return true;
+		}
+
 		/*[PatchAttr(typeof(ToiletEventManager), "Show_IgnorUI", EPatchType.Prefix)]
 		static bool ToiletEventManager_Show_IgnorUI_Prefix(ToiletEventManager __instance)
 		{
 			return true;
 		}*/
+
+		// UI_ClothSystem ----------------------------------------------------------------
+
+		[PatchAttr(typeof(UI_ClothSystem), "Start", EPatchType.Prefix)]
+		static bool UI_ClothSystem_Start_Prefix(UI_ClothSystem __instance)
+		{
+			// Only run if we are the local player
+			return EKMPPlayer.ClothSystem_GetPlayer(__instance) == GameNet.GetLocalPlayer();
+		}
+
+		[PatchAttr(typeof(UI_ClothSystem), "ChangeHairStyle", EPatchType.Prefix)]
+		static bool UI_ClothSystem_ChangeHairStyle_Prefix(UI_ClothSystem __instance, int input)
+		{
+			EKMPPlayer player = GameNet.GetPlayer(EKMPPlayer.ClothSystem_GetPlayer(__instance));
+			if (player == null)
+				return true;
+			player.ClothSystem_ChangeHairStyle(__instance, input);
+			return false;
+		}
+
+		// UI_cloth_Purchase ----------------------------------------------------------------
+
+		[PatchAttr(typeof(UI_cloth_Purchase), "Start", EPatchType.Prefix)]
+		static bool UI_cloth_Purchase_Start_Prefix(UI_cloth_Purchase __instance)
+		{
+			// Only run if we are the local player
+			return EKMPPlayer.ClothPurchase_GetPlayer(__instance) == GameNet.GetLocalPlayer();
+		}
+
+		[PatchAttr(typeof(UI_cloth_Purchase), "OnClothSelect", EPatchType.Prefix)]
+		static bool UI_cloth_Purchase_OnClothSelect_Prefix(UI_cloth_Purchase __instance, int inputID)
+		{
+			EKMPPlayer player = GameNet.GetPlayer(EKMPPlayer.ClothPurchase_GetPlayer(__instance));
+			if (player == null)
+				return true;
+			player.ClothPurchase_SelectCloth(__instance, inputID);
+			return false;
+		}
 	}
 }

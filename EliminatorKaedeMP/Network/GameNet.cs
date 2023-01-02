@@ -1,5 +1,6 @@
 ﻿using K_PlayerControl;
 using System.Collections.Generic;
+using UnityEngine;
 
 namespace EliminatorKaedeMP
 {
@@ -79,8 +80,28 @@ namespace EliminatorKaedeMP
 
         public static void InitLocalPlayerInfo(EKMPPlayerInfo playerInfo)
 		{
+			PlayerPref pref = PlayerPref.instance;
+			UI_ClothSystem cs = pref.GetComponent<UI_ClothSystem>();
+
 			playerInfo.Name = Utils.GetPlayerName();
-			playerInfo.CharacterID = (byte)PlayerPref.instance.PlayerCharacterID;
+			playerInfo.CharacterID = (byte)pref.PlayerCharacterID;
+			playerInfo.ClothID = (byte)cs.clothID;
+			playerInfo.S_underHair = cs.S_underHair;
+			playerInfo.S_underHair_alpha = cs.S_underHair_alpha;
+			playerInfo.S_underHair_density = cs.S_underHair_density;
+			playerInfo.S_HairStyle = cs.S_HairStyle;
+			playerInfo.S_HIYAKE_kosa = cs.S_HIYAKE_kosa;
+			playerInfo.S_HIYAKE_patan = cs.S_HIYAKE_patan;
+			playerInfo.S_MatColor = new Color[10];
+			for (int i = 0; i < 10; i++)
+			{
+				Color color;
+				color.r = PlayerPrefs.GetInt(cs.KEY_MatColor[i, 0]);
+				color.g = PlayerPrefs.GetInt(cs.KEY_MatColor[i, 1]);
+				color.b = PlayerPrefs.GetInt(cs.KEY_MatColor[i, 2]);
+				color.a = PlayerPrefs.GetInt(cs.KEY_MatColor[i, 3]);
+				playerInfo.S_MatColor[i] = color;
+			}
 		}
 
         // Creates an EKMPPlayer instance for our local player
