@@ -583,6 +583,7 @@ namespace EliminatorKaedeMP
 			else
 			{
 				// But if we are a client, we must send it to the server so that it will broadcast it to other clients
+				byte[] bytes;
 				using (MemoryStream stream = new MemoryStream())
 				{
 					using (BinaryWriter writer = new BinaryWriter(stream))
@@ -590,8 +591,9 @@ namespace EliminatorKaedeMP
 						writer.Write((int)C2SPacketID.PlayerMove);
 						moveData.Write(writer);
 					}
-					Client.SendPacket(stream.ToArray());
+					bytes = stream.ToArray();
 				}
+				Client.SendPacket(bytes);
 			}
 		}
 

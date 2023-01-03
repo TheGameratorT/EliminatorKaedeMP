@@ -123,8 +123,7 @@ namespace EliminatorKaedeMP
 				case S2CPacketID.PlayerMove:
 				{
 					uint playerID = reader.ReadUInt32();
-					stream.Position = 8;
-					PlayerMoveData playerMoveData = (PlayerMoveData)Utils.Deserialize(stream);
+					PlayerMoveData playerMoveData = PlayerMoveData.Read(reader);
 					Plugin.CallOnMainThread(() => GameNet.GetPlayer(playerID).OnMoveData(playerMoveData));
 					break;
 				}

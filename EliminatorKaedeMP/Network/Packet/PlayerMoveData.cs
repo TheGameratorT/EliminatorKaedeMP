@@ -32,8 +32,8 @@ namespace EliminatorKaedeMP
 			moveData.PlayerRot = reader.ReadQuaternion();
 			moveData.InputH = reader.ReadBoolean();
 			moveData.InputV = reader.ReadBoolean();
-			moveData.FloatH = reader.Read();
-			moveData.FloatV = reader.Read();
+			moveData.FloatH = reader.ReadSingle();
+			moveData.FloatV = reader.ReadSingle();
 			return moveData;
 		}
 	}
