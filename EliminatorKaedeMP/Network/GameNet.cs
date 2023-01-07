@@ -96,10 +96,10 @@ namespace EliminatorKaedeMP
 			for (int i = 0; i < 10; i++)
 			{
 				Color color;
-				color.r = PlayerPrefs.GetInt(cs.KEY_MatColor[i, 0]);
-				color.g = PlayerPrefs.GetInt(cs.KEY_MatColor[i, 1]);
-				color.b = PlayerPrefs.GetInt(cs.KEY_MatColor[i, 2]);
-				color.a = PlayerPrefs.GetInt(cs.KEY_MatColor[i, 3]);
+				color.r = PlayerPrefs.GetInt(cs.KEY_MatColor[i, 0]) / 255.0f;
+				color.g = PlayerPrefs.GetInt(cs.KEY_MatColor[i, 1]) / 255.0f;
+				color.b = PlayerPrefs.GetInt(cs.KEY_MatColor[i, 2]) / 255.0f;
+				color.a = PlayerPrefs.GetInt(cs.KEY_MatColor[i, 3]) / 255.0f;
 				playerInfo.S_MatColor[i] = color;
 			}
 		}

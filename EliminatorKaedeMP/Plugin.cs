@@ -97,13 +97,47 @@ namespace EliminatorKaedeMP
 			}
 			if (Input.GetKeyDown(KeyCode.K))
 			{
-				Log("Plugin -> TryInstantiateNetPlayer");
-				EKMPPlayerInfo playerInfo = new EKMPPlayerInfo();
-				playerInfo.ID = 1;
-				playerInfo.Name = "Test Player";
-				playerInfo.CharacterID = 0;
-				EKMPPlayer player = new EKMPPlayer();
-				player.Initialize(null, playerInfo);
+				Log("Plugin -> Create Test Player");
+				if (GameNet.IsServer)
+				{
+					EKMPPlayerInfo playerInfo = new EKMPPlayerInfo();
+					GameNet.InitLocalPlayerInfo(playerInfo);
+					playerInfo.ID = 1;
+					playerInfo.Name = "Test Player";
+					playerInfo.CharacterID = 0;
+					playerInfo.S_HairStyle = 2;
+					playerInfo.S_MatColor[6] = Color.green;
+					EKMPPlayer player = new EKMPPlayer();
+					player.Initialize(null, playerInfo);
+					Log("Test Player Instantiated");
+				}
+				else
+				{
+					Log("Test Player instantiation failed, please start the server first!");
+				}
+			}
+			if (Input.GetKeyDown(KeyCode.I))
+			{
+				Log("Plugin -> Searching");
+				foreach (GameObject obj in FindObjectsOfType<GameObject>())
+				{
+					SkinnedMeshRenderer mr = obj.GetComponent<SkinnedMeshRenderer>();
+					if (mr != null)
+					{
+						foreach (Material material in mr.materials)
+						{
+							if (material.name.StartsWith("kaede_Skin_00_diff") ||
+								material.name.StartsWith("m_Eyes") ||
+								material.name.StartsWith("UnderhairMaterial") ||
+								material.name.StartsWith("hair_mat") ||
+								material.name.StartsWith("lambert1") ||
+								material.name.StartsWith("eye_White"))
+							{
+								Log(material.name + ": " + Utils.GetGameObjectPath(obj));
+							}
+						}
+					}
+				}
 			}
 		}
 

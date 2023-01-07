@@ -22,10 +22,11 @@ namespace EliminatorKaedeMP
 
 		public static void Write(this BinaryWriter writer, Color color)
 		{
-			writer.Write((byte)(255 * color.r));
-			writer.Write((byte)(255 * color.g));
-			writer.Write((byte)(255 * color.b));
-			writer.Write((byte)(255 * color.a));
+			Plugin.Log(color);
+			writer.Write((byte)(255.0f * color.r));
+			writer.Write((byte)(255.0f * color.g));
+			writer.Write((byte)(255.0f * color.b));
+			writer.Write((byte)(255.0f * color.a));
 		}
 
 		public static Vector3 ReadVector3(this BinaryReader reader)
@@ -50,10 +51,10 @@ namespace EliminatorKaedeMP
 		public static Color ReadColor(this BinaryReader reader)
 		{
 			Color color;
-			color.r = (float)reader.ReadByte() / 255;
-			color.g = (float)reader.ReadByte() / 255;
-			color.b = (float)reader.ReadByte() / 255;
-			color.a = (float)reader.ReadByte() / 255;
+			color.r = reader.ReadByte() / 255.0f;
+			color.g = reader.ReadByte() / 255.0f;
+			color.b = reader.ReadByte() / 255.0f;
+			color.a = reader.ReadByte() / 255.0f;
 			return color;
 		}
 	}

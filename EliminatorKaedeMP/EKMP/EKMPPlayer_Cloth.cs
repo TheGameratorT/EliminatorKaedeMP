@@ -1,4 +1,6 @@
 ﻿using K_PlayerControl;
+using System.IO;
+using System.Reflection;
 using UnityEngine;
 using UnityEngine.UI;
 using static EliminatorKaedeMP.EKMP_UI_cloth_Purchase;
@@ -13,16 +15,62 @@ namespace EliminatorKaedeMP
 		{
 			UI_ClothSystem ogCs = PlayerPref.instance.GetComponent<UI_ClothSystem>();
 
+			// New instances of the materials must be created to avoid shared colors
+			Material skinMat = Object.Instantiate(ogCs.MaterialList[0]);
+			Material eyesMat = Object.Instantiate(ogCs.MaterialList[4]);
+			Material underHairMat = Object.Instantiate(ogCs.MaterialList[5]);
+			Material hairMat = Object.Instantiate(ogCs.MaterialList[6]);
+			Material lambertMat = ogCs.MaterialList[7];
+			Material eyeWhiteMat = Object.Instantiate(ogCs.MaterialList[9]);
+
+			// Create a new MaterialList
+			cs.MaterialList = new Material[10];
+			cs.MaterialList[0] = skinMat;
+			cs.MaterialList[1] = skinMat;
+			cs.MaterialList[2] = skinMat;
+			cs.MaterialList[3] = skinMat;
+			cs.MaterialList[4] = eyesMat;
+			cs.MaterialList[5] = underHairMat;
+			cs.MaterialList[6] = hairMat;
+			cs.MaterialList[7] = lambertMat;
+			cs.MaterialList[8] = lambertMat;
+			cs.MaterialList[9] = eyeWhiteMat;
+
 			cs.DefaultColor = ogCs.DefaultColor;
-			cs.MaterialList = ogCs.MaterialList;
 			cs.ShaderParamName = ogCs.ShaderParamName;
 			cs.HIYAKE_pat = ogCs.HIYAKE_pat;
-			cs.UnderHairMat = ClothSystem_GetMaterial("geomGrp/common/underHair");
-			cs.SkinMat = ClothSystem_GetMaterial("geomGrp/common/Game_body_P1");
+			cs.UnderHairMat = underHairMat;
+			cs.SkinMat = skinMat;
 
+			ClothSystem_SetMaterial("geomGrp/common/tooth_above", skinMat);
+			ClothSystem_SetMaterial("geomGrp/common/tonge", skinMat);
+			ClothSystem_SetMaterial("geomGrp/common/tooth_under", skinMat);
+			ClothSystem_SetMaterial("geomGrp/common/Game_body_P1", skinMat);
+			ClothSystem_SetMaterial("geomGrp/common/eye", eyesMat);
+			ClothSystem_SetMaterial("geomGrp/common/underHair", underHairMat);
+
+			// Setting hair material is a bit complicated
+			SkinnedMeshRenderer faceSmr = PlayerCtrl.transform.Find("geomGrp/GamePart/Game_Face").GetComponent<SkinnedMeshRenderer>();
+			Material[] faceMaterials = new Material[faceSmr.materials.Length];
+			faceMaterials[0] = skinMat;
+			faceMaterials[1] = faceSmr.materials[1];
+			faceMaterials[2] = eyeWhiteMat;
+			faceSmr.materials = faceMaterials;
+
+			// Setting hair material is a bit even more complicated
 			cs.hairStyle = new GameObject[ogCs.hairStyle.Length];
 			for (int i = 0; i < ogCs.hairStyle.Length; i++)
+			{
 				cs.hairStyle[i] = FindGameObjectFromLocal(ogCs.hairStyle[i]);
+				SkinnedMeshRenderer renderer = cs.hairStyle[i].GetComponentInChildren<SkinnedMeshRenderer>();
+				Material[] materials = new Material[renderer.materials.Length];
+				for (int j = 0; j < renderer.materials.Length; j++)
+				{ 
+					Material ogMat = renderer.materials[j];
+					materials[j] = ogMat.name.StartsWith("hair_mat") ? hairMat : ogMat;
+				}
+				renderer.materials = materials;
+			}
 
 			cs.ini = true;
 			ClothSystem_LoadData(cs);
@@ -65,9 +113,9 @@ namespace EliminatorKaedeMP
 			}
 		}
 
-		private Material ClothSystem_GetMaterial(string path)
+		private void ClothSystem_SetMaterial(string path, Material material)
 		{
-			return PlayerCtrl.transform.Find(path).GetComponent<SkinnedMeshRenderer>().material;
+			PlayerCtrl.transform.Find(path).GetComponent<SkinnedMeshRenderer>().material = material;
 		}
 
 		public static PlayerControl ClothSystem_GetPlayer(UI_ClothSystem cs)
