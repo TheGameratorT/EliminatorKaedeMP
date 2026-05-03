@@ -1,4 +1,4 @@
-﻿using K_PlayerControl;
+using K_PlayerControl;
 
 namespace EliminatorKaedeMP
 {

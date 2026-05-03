@@ -1,4 +1,4 @@
-﻿using K_PlayerControl;
+using K_PlayerControl;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -48,10 +48,18 @@ namespace EliminatorKaedeMP
             return null;
         }
 
+        private static int _localPlayerNullLogs = 0;
+
         // Gets the local player controller, null if not in game
         public static PlayerControl GetLocalPlayer()
         {
-            return PlayerPref.instance?.PlayerIncetance?.GetComponent<PlayerControl>();
+            var result = PlayerPref.instance?.PlayerIncetance?.GetComponent<PlayerControl>();
+            if (result == null && _localPlayerNullLogs < 5)
+            {
+                _localPlayerNullLogs++;
+                Plugin.Log($"[DIAG] GetLocalPlayer null #{_localPlayerNullLogs}: PlayerPref.instance={(PlayerPref.instance != null ? "SET" : "NULL")}");
+            }
+            return result;
         }
 
         // Gets the multiplayer handle of a player
@@ -59,7 +67,8 @@ namespace EliminatorKaedeMP
         {
             if (player == GetLocalPlayer())
                 return Player;
-            return ((EKMPPlayerPref)player.Perf).MPPlayer;
+            try { return ((EKMPPlayerPref)player.Perf).MPPlayer; }
+            catch (System.Exception ex) { Plugin.Log($"[DIAG] GetPlayer cast failed for {player.name}: {ex.Message}"); return null; }
         }
 
         // Returns true if we are a server or if we are a client connected to a server, false otherwise
@@ -85,23 +94,31 @@ namespace EliminatorKaedeMP
 
 			playerInfo.Name = Utils.GetPlayerName();
 			playerInfo.CharacterID = (byte)pref.PlayerCharacterID;
-			playerInfo.ClothID = (byte)cs.clothID;
-			playerInfo.S_underHair = cs.S_underHair;
-			playerInfo.S_underHair_alpha = cs.S_underHair_alpha;
-			playerInfo.S_underHair_density = cs.S_underHair_density;
-			playerInfo.S_HairStyle = cs.S_HairStyle;
-			playerInfo.S_HIYAKE_kosa = cs.S_HIYAKE_kosa;
-			playerInfo.S_HIYAKE_patan = cs.S_HIYAKE_patan;
-			playerInfo.S_MatColor = new Color[10];
+
+            EKMPPlayerClothInfo clothInfo = new EKMPPlayerClothInfo();
+			clothInfo.ClothID = (byte)cs.clothID;
+			clothInfo.S_underHair = cs.S_underHair;
+			clothInfo.S_underHair_alpha = cs.S_underHair_alpha;
+			clothInfo.S_underHair_density = cs.S_underHair_density;
+			clothInfo.S_HairStyle = cs.S_HairStyle;
+			clothInfo.S_HIYAKE_kosa = cs.S_HIYAKE_kosa;
+			clothInfo.S_HIYAKE_patan = cs.S_HIYAKE_patan;
+			clothInfo.S_MatColor = new Color[10];
 			for (int i = 0; i < 10; i++)
 			{
+				Color def = cs.DefaultColor[i];
+				int dr = Mathf.FloorToInt(def.r * 255f);
+				int dg = Mathf.FloorToInt(def.g * 255f);
+				int db = Mathf.FloorToInt(def.b * 255f);
+				int da = Mathf.FloorToInt(def.a * 255f);
 				Color color;
-				color.r = PlayerPrefs.GetInt(cs.KEY_MatColor[i, 0]) / 255.0f;
-				color.g = PlayerPrefs.GetInt(cs.KEY_MatColor[i, 1]) / 255.0f;
-				color.b = PlayerPrefs.GetInt(cs.KEY_MatColor[i, 2]) / 255.0f;
-				color.a = PlayerPrefs.GetInt(cs.KEY_MatColor[i, 3]) / 255.0f;
-				playerInfo.S_MatColor[i] = color;
+				color.r = PlayerPrefs.GetInt(cs.KEY_MatColor[i, 0], dr) / 255.0f;
+				color.g = PlayerPrefs.GetInt(cs.KEY_MatColor[i, 1], dg) / 255.0f;
+				color.b = PlayerPrefs.GetInt(cs.KEY_MatColor[i, 2], db) / 255.0f;
+				color.a = PlayerPrefs.GetInt(cs.KEY_MatColor[i, 3], da) / 255.0f;
+				clothInfo.S_MatColor[i] = color;
 			}
+			playerInfo.Cloth = clothInfo;
 		}
 
         // Creates an EKMPPlayer instance for our local player

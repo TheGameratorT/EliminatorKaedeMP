@@ -1,8 +1,9 @@
-﻿using K_PlayerControl;
+using K_PlayerControl;
 using System.IO;
 using System.Reflection;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.XR.Tango;
 using static EliminatorKaedeMP.EKMP_UI_cloth_Purchase;
 
 namespace EliminatorKaedeMP
@@ -36,7 +37,6 @@ namespace EliminatorKaedeMP
 			cs.MaterialList[8] = lambertMat;
 			cs.MaterialList[9] = eyeWhiteMat;
 
-			cs.DefaultColor = ogCs.DefaultColor;
 			cs.ShaderParamName = ogCs.ShaderParamName;
 			cs.HIYAKE_pat = ogCs.HIYAKE_pat;
 			cs.UnderHairMat = underHairMat;
@@ -78,19 +78,21 @@ namespace EliminatorKaedeMP
 
 		private void ClothSystem_LoadData(UI_ClothSystem cs)
 		{
-			cs.clothID = Info.ClothID;
-			cs.S_underHair = Info.S_underHair;
-			cs.S_underHair_alpha = Info.S_underHair_alpha;
-			cs.S_underHair_density = Info.S_underHair_density;
-			cs.S_HairStyle = Info.S_HairStyle;
-			cs.S_HIYAKE_kosa = Info.S_HIYAKE_kosa;
-			cs.S_HIYAKE_patan = Info.S_HIYAKE_patan;
+			EKMPPlayerClothInfo clothInfo = Info.Cloth;
+
+			cs.clothID = clothInfo.ClothID;
+			cs.S_underHair = clothInfo.S_underHair;
+			cs.S_underHair_alpha = clothInfo.S_underHair_alpha;
+			cs.S_underHair_density = clothInfo.S_underHair_density;
+			cs.S_HairStyle = clothInfo.S_HairStyle;
+			cs.S_HIYAKE_kosa = clothInfo.S_HIYAKE_kosa;
+			cs.S_HIYAKE_patan = clothInfo.S_HIYAKE_patan;
 
 			for (int i = 0; i < 10; i++)
 			{
 				string[] paramNames = cs.ShaderParamName[i].Split(',');
 				for (int j = 0; j < paramNames.Length; j++)
-					cs.MaterialList[i].SetColor(paramNames[j], Info.S_MatColor[i]);
+					cs.MaterialList[i].SetColor(paramNames[j], clothInfo.S_MatColor[i]);
 			}
 
 			cs.UnderHairMat.SetFloat("_Alpha", cs.S_underHair_alpha);
@@ -107,10 +109,7 @@ namespace EliminatorKaedeMP
 				cs.hairStyle[i].SetActive(i == input);
 
 			if (isLocalPlayer)
-			{
 				PlayerPrefs.SetInt(cs.KEY_HairStyle, input);
-				// SendHairstyleChangeData(input); // might need to prevent packet send during init
-			}
 		}
 
 		private void ClothSystem_SetMaterial(string path, Material material)
@@ -153,7 +152,7 @@ namespace EliminatorKaedeMP
 				}
 			}
 
-			ClothPurchase_SelectCloth(cp, Info.ClothID);
+			ClothPurchase_SelectCloth(cp, Info.Cloth.ClothID);
 		}
 
 		// Server + Client - Replacement for UI_cloth_Purchase.OnClothSelect
@@ -183,7 +182,7 @@ namespace EliminatorKaedeMP
 			}
 
 			cs.clothID = inputID;
-			Info.ClothID = (byte)inputID;
+			Info.Cloth.ClothID = (byte)inputID;
 
 			if (isLocalPlayer)
 			{
@@ -203,7 +202,6 @@ namespace EliminatorKaedeMP
 
 				SaveData.SetInt(cp.KEY_Cloth_ID, inputID);
 				SaveData.Save();
-				// SendClothChangeData(inputID); // might need to prevent packet send during init
 			}
 		}
 
@@ -256,6 +254,62 @@ namespace EliminatorKaedeMP
 		public static PlayerControl ClothPurchase_GetPlayer(UI_cloth_Purchase cp)
 		{
 			return cp.gameObject.transform.parent.GetComponent<PlayerPref>().PlayerIncetance?.GetComponent<PlayerControl>();
+		}
+
+		// Server + Client - Runs when cloth data is received
+		public void OnClothInfoData(EKMPPlayerClothInfo clothInfo)
+		{
+			bool changedClothID = Info.Cloth.ClothID != clothInfo.ClothID;
+			Info.Cloth = clothInfo;
+
+			ClothSystem_LoadData(PlayerCtrl.Perf.GetComponent<UI_ClothSystem>());
+			if (changedClothID)
+			{
+				UI_cloth_Purchase cp = PlayerCtrl.Perf.PlayerData[Info.CharacterID].GetComponent<UI_cloth_Purchase>();
+				ClothPurchase_SelectCloth(cp, clothInfo.ClothID);
+			}
+		}
+
+		// Server - Sends the cloth data of a player to the other clients
+		private void BroadcastClothInfoData(EKMPPlayerClothInfo clothInfo)
+		{
+			byte[] bytes;
+			using (MemoryStream stream = new MemoryStream())
+			{
+				using (BinaryWriter writer = new BinaryWriter(stream))
+				{
+					writer.Write((int)S2CPacketID.PlayerClothInfo);
+					writer.Write(Info.ID);
+					clothInfo.Write(writer);
+				}
+				bytes = stream.ToArray();
+			}
+			BroadcastPacket(bytes);
+		}
+
+		// Server + Client - Sends the cloth data to the server (only the local player should run this)
+		public void SendClothInfoData()
+		{
+			if (GameNet.IsServer)
+			{
+				// If we are a server, there is not point in sending the data to ourselves, just send it to the other clients
+				BroadcastClothInfoData(Info.Cloth);
+			}
+			else
+			{
+				// But if we are a client, we must send it to the server so that it will broadcast it to other clients
+				byte[] bytes;
+				using (MemoryStream stream = new MemoryStream())
+				{
+					using (BinaryWriter writer = new BinaryWriter(stream))
+					{
+						writer.Write((int)C2SPacketID.PlayerClothInfo);
+						Info.Cloth.Write(writer);
+					}
+					bytes = stream.ToArray();
+				}
+				Client.SendPacket(bytes);
+			}
 		}
 	}
 }

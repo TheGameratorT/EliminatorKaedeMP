@@ -1,4 +1,4 @@
-﻿using BepInEx;
+using BepInEx;
 using HarmonyLib;
 using System;
 using System.Collections.Generic;
@@ -105,8 +105,6 @@ namespace EliminatorKaedeMP
 					playerInfo.ID = 1;
 					playerInfo.Name = "Test Player";
 					playerInfo.CharacterID = 0;
-					playerInfo.S_HairStyle = 2;
-					playerInfo.S_MatColor[6] = Color.green;
 					EKMPPlayer player = new EKMPPlayer();
 					player.Initialize(null, playerInfo);
 					Log("Test Player Instantiated");

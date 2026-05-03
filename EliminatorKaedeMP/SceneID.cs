@@ -1,4 +1,4 @@
-﻿namespace EliminatorKaedeMP
+namespace EliminatorKaedeMP
 {
 	public class SceneID
 	{

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Text;
 using UnityEngine.SceneManagement;
@@ -120,33 +120,27 @@ namespace EliminatorKaedeMP
 					Plugin.CallOnMainThread(() => GameNet.GetPlayer(playerID).OnDisconnect());
 					break;
 				}
-				case S2CPacketID.PlayerMove:
+				case S2CPacketID.PlayerState:
 				{
 					uint playerID = reader.ReadUInt32();
-					PlayerMoveData playerMoveData = PlayerMoveData.Read(reader);
-					Plugin.CallOnMainThread(() => GameNet.GetPlayer(playerID).OnMoveData(playerMoveData));
+					PlayerStateData data = PlayerStateData.Read(reader);
+					Plugin.CallOnMainThread(() => GameNet.GetPlayer(playerID)?.OnStateData(data));
 					break;
 				}
-				case S2CPacketID.PlayerJump:
+				case S2CPacketID.PlayerEvent:
 				{
 					uint playerID = reader.ReadUInt32();
-					int jumpType = reader.ReadInt32();
-					Plugin.CallOnMainThread(() => GameNet.GetPlayer(playerID).OnJumpData(jumpType));
+					PlayerEventID eventID = (PlayerEventID)reader.ReadInt32();
+					int data0 = reader.ReadInt32();
+					int data1 = reader.ReadInt32();
+					Plugin.CallOnMainThread(() => GameNet.GetPlayer(playerID)?.OnEventData(eventID, data0, data1));
 					break;
 				}
-				case S2CPacketID.PlayerCtrlKey:
+				case S2CPacketID.PlayerHealth:
 				{
 					uint playerID = reader.ReadUInt32();
-					EKMPPlayer.CtrlKey key = (EKMPPlayer.CtrlKey)reader.ReadInt32();
-					bool isDown = reader.ReadInt32() != 0 ? true : false;
-					Plugin.CallOnMainThread(() => GameNet.GetPlayer(playerID).OnControlData(key, isDown));
-					break;
-				}
-				case S2CPacketID.PlayerKnifeUse:
-				{
-					uint playerID = reader.ReadUInt32();
-					int state = reader.ReadInt32();
-					Plugin.CallOnMainThread(() => GameNet.GetPlayer(playerID).OnKnifeUseData(state));
+					PlayerHealthData health = PlayerHealthData.Read(reader);
+					Plugin.CallOnMainThread(() => GameNet.GetPlayer(playerID)?.OnHealthData(health));
 					break;
 				}
 				case S2CPacketID.PlayerChangeChar:
@@ -154,6 +148,13 @@ namespace EliminatorKaedeMP
 					uint playerID = reader.ReadUInt32();
 					int charID = reader.ReadInt32();
 					Plugin.CallOnMainThread(() => GameNet.GetPlayer(playerID).SetPlayerCharacter(charID));
+					break;
+				}
+				case S2CPacketID.PlayerClothInfo:
+				{
+					uint playerID = reader.ReadUInt32();
+					EKMPPlayerClothInfo clothInfo = EKMPPlayerClothInfo.Read(reader);
+					Plugin.CallOnMainThread(() => GameNet.GetPlayer(playerID).OnClothInfoData(clothInfo));
 					break;
 				}
 				default:

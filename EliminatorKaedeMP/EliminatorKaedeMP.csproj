@@ -37,6 +37,14 @@
   </ItemGroup>
   
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="call $(ProjectDir)\Tools\pdb2mdb.exe $(TargetPath)&#xD;&#xA;del $(TargetDir)\$(TargetName).pdb" />
+
+    <!-- Windows build -->
+    <Exec Condition="'$(OS)' == 'Windows_NT'"
+          Command="&quot;$(ProjectDir)\Tools\pdb2mdb.exe&quot; &quot;$(TargetPath)&quot; &amp;&amp; del &quot;$(TargetDir)\$(TargetName).pdb&quot;" />
+
+    <!-- Linux build (via wine) -->
+    <!-- Exec Condition="'$(OS)' != 'Windows_NT'"
+          Command="wine &quot;$(ProjectDir)/Tools/pdb2mdb.exe&quot; &quot;$(TargetPath)&quot; &amp;&amp; rm -f &quot;$(TargetDir)/$(TargetName).pdb&quot;" / -->
+
   </Target>
 </Project>

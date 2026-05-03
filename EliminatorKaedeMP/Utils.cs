@@ -1,4 +1,4 @@
-﻿using K_PlayerControl;
+using K_PlayerControl;
 using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
 using UnityEngine;
