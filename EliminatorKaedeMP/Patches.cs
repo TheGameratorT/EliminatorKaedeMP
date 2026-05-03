@@ -143,6 +143,14 @@ namespace EliminatorKaedeMP
 			return true;
 		}
 
+		// Skip Update for remote players; aiming direction is calculated from network data.
+		[PatchAttr(typeof(PlayerAct_00), "Update", EPatchType.Prefix)]
+		static bool PlayerAct_00_Update_Prefix(PlayerAct_00 __instance)
+		{
+			PlayerControl player = __instance.GetComponent<PlayerControl>();
+			return player == GameNet.GetLocalPlayer();
+		}
+
 		// PlayerAct_01 ----------------------------------------------------------------
 
 		[PatchAttr(typeof(PlayerAct_01), "Update", EPatchType.Prefix)]

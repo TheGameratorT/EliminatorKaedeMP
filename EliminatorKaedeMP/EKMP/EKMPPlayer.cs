@@ -895,6 +895,8 @@ namespace EliminatorKaedeMP
                 {
                     // Apply interpolated state for remote players.
                     ApplyInterpolatedState(player, pref, anim);
+                    // Update aim direction based on remote camera for AimIK.
+                    UpdateRemoteAimIK(player, pref);
                 }
 
                 // Animator parameters (shared – both local and remote need these set).
@@ -1010,6 +1012,61 @@ namespace EliminatorKaedeMP
             // by physics and look broken without syncing.
             if (player.FlyState != receivedFly)
                 player.FlyState = receivedFly;
+        }
+
+        // Update AimIK target position for remote players based on their actual camera direction.
+        private void UpdateRemoteAimIK(PlayerControl player, PlayerPref pref)
+        {
+            PlayerAct_00 act00 = player.GetComponent<PlayerAct_00>();
+            if (act00 == null || !act00.player_ini)
+                return;
+
+            // Always update AimIK weights to handle transition when stopping aim
+            float aimWeight = player.IsAiming() ? act00.AimIK_weight : 0f;
+            if (act00._AimIK != null)
+                act00._AimIK.solver.IKPositionWeight = Mathf.Lerp(act00._AimIK.solver.IKPositionWeight, aimWeight, act00.AImIK_Lerp);
+            
+            // Update sync animators' AimIKs as well
+            for (int i = 0; i < act00.AimIKs.Length; i++)
+            {
+                if (act00.AimIKs[i] != null)
+                    act00.AimIKs[i].solver.IKPositionWeight = Mathf.Lerp(act00.AimIKs[i].solver.IKPositionWeight, aimWeight, act00.AImIK_Lerp);
+            }
+
+            // Only update aim target position when aiming
+            if (!player.IsAiming())
+                return;
+
+            // Get the weapon component to determine muzzle position
+            var weapon = pref.isMain ? pref.E_mainWepon : pref.E_SubWepon;
+            if (weapon == null)
+                return;
+
+            var gunControl = weapon.GetComponent<kaede_gunAct_control>();
+            if (gunControl == null || gunControl.t_mussle == null)
+                return;
+
+            // Calculate aim direction from remote camera forward
+            Vector3 muzzlePos = gunControl.t_mussle.position;
+            Vector3 aimDirection = remoteAimForward;
+
+            // Cast a ray from the muzzle in the aim direction to find the target
+            RaycastHit hitInfo;
+            Vector3 targetPos;
+            if (Physics.Raycast(muzzlePos, aimDirection, out hitInfo, 1000f, pref.LayerMaskInfo[2]))
+            {
+                targetPos = hitInfo.point;
+            }
+            else
+            {
+                targetPos = muzzlePos + aimDirection * 100f;
+            }
+
+            // Update AimTarget position - this drives the AimIK
+            if (act00.AimTarget != null)
+            {
+                act00.AimTarget.transform.position = targetPos;
+            }
         }
 
         // ══════════════════════════════════════════════════════════════════════
