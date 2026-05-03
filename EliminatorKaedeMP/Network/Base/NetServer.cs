@@ -14,11 +14,15 @@ namespace EliminatorKaedeMP
 		private bool acceptorRunning = false;
 
 		public ConnectedCallback OnClientConnected = null;
+		public UdpSocket UdpSocket { get; private set; }
 
 		public void Start(int port)
 		{
 			tcpListener = new TcpListener(IPAddress.Any, port);
 			tcpListener.Start();
+
+			UdpSocket = new UdpSocket();
+			UdpSocket.StartServer(port);
 
 			acceptorRunning = true;
 			acceptorThread = new Thread(new ThreadStart(AcceptorThread));
@@ -28,6 +32,8 @@ namespace EliminatorKaedeMP
 		public void Stop()
 		{
 			tcpListener.Stop();
+			UdpSocket.Close();
+			UdpSocket = null;
 			acceptorRunning = false;
 			acceptorThread.Join();
 		}

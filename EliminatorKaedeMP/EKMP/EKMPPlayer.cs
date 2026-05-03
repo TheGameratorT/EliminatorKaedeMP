@@ -3,6 +3,7 @@ using K_PlayerControl.UI;
 using RootMotion.FinalIK;
 using System;
 using System.IO;
+using System.Net;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -22,6 +23,7 @@ namespace EliminatorKaedeMP
         public EKMPPlayerInfo Info;
         public NetClient Client = null;
         public PlayerControl PlayerCtrl = null;
+        public IPEndPoint UdpEndpoint = null;
 
         private RectTransform nicknameCanvasRect = null;
 
@@ -576,7 +578,7 @@ namespace EliminatorKaedeMP
                     }
                     bytes = ms.ToArray();
                 }
-                Client.SendPacket(bytes);
+                GameNet.Client.SendUdpPacket(bytes);
             }
         }
 
@@ -593,7 +595,22 @@ namespace EliminatorKaedeMP
                 }
                 bytes = ms.ToArray();
             }
-            BroadcastPacket(bytes);
+            UdpBroadcastPacket(bytes);
+        }
+
+        // Sends UDP to all connected clients except the server's local player and this player.
+        // Falls back to TCP for any client whose UDP endpoint is not yet registered.
+        private void UdpBroadcastPacket(byte[] bytes)
+        {
+            foreach (EKMPPlayer p in GameNet.Players)
+            {
+                if (p.Info.ID == GameNet.Player.Info.ID || p == this)
+                    continue;
+                if (p.UdpEndpoint != null)
+                    GameNet.Server.SendUdpTo(bytes, p.UdpEndpoint);
+                else
+                    p.Client?.SendPacket(bytes);
+            }
         }
 
         // Called on main thread when state data arrives for this remote player.
@@ -697,7 +714,7 @@ namespace EliminatorKaedeMP
                     }
                     bytes = ms.ToArray();
                 }
-                Client.SendPacket(bytes);
+                GameNet.Client.SendUdpPacket(bytes);
             }
         }
 
@@ -714,7 +731,7 @@ namespace EliminatorKaedeMP
                 }
                 bytes = ms.ToArray();
             }
-            BroadcastPacket(bytes);
+            UdpBroadcastPacket(bytes);
         }
 
         public void OnHealthData(PlayerHealthData data)

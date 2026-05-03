@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Net;
 using System.Text;
 using UnityEngine.SceneManagement;
 
@@ -8,6 +9,7 @@ namespace EliminatorKaedeMP
 	public class GameClient
 	{
 		private NetClient netClient;
+		private UdpSocket udpSocket;
 
 		public void Connect(string hostname, int port)
 		{
@@ -19,16 +21,37 @@ namespace EliminatorKaedeMP
 			netClient.SendPacket(Encoding.UTF8.GetBytes("EKMP")); // Begin handshake
 			GameNet.Player = null;
 			GameNet.Players.Clear();
+
+			udpSocket = new UdpSocket();
+			udpSocket.StartClient(hostname, port);
+			udpSocket.OnDatagramReceived = OnUdpDatagramReceived;
 		}
 
 		public void Disconnect()
 		{
 			netClient.Disconnect();
+			udpSocket?.Close();
+			udpSocket = null;
+		}
+
+		public void SendUdpPacket(byte[] bytes)
+		{
+			udpSocket?.Send(bytes);
+		}
+
+		private void SendUdpHandshake(uint playerID)
+		{
+			byte[] data = new byte[8];
+			Utils.WriteInt(data, 0, (int)C2SPacketID.UdpHandshake);
+			Utils.WriteInt(data, 4, (int)playerID);
+			udpSocket.Send(data);
 		}
 
 		private void OnDisconnected(NetClient netClient)
 		{
 			GameNet.IsClient = false;
+			udpSocket?.Close();
+			udpSocket = null;
 			foreach (EKMPPlayer player in GameNet.Players)
 			{
 				if (player.Info.ID != GameNet.Player.Info.ID)
@@ -50,7 +73,6 @@ namespace EliminatorKaedeMP
 
 			Plugin.Log("Got valid server handshake confirmation, proceeding...");
 
-			// Send the player info, server will receive it on GameServer.OnPlayerInfoPacketReceived
 			EKMPPlayerInfo playerInfo = new EKMPPlayerInfo();
 			GameNet.InitLocalPlayerInfo(playerInfo);
 			byte[] bytes2;
@@ -67,6 +89,11 @@ namespace EliminatorKaedeMP
 			netClient.OnPacketReceived = OnPacketReceived;
 		}
 
+		private void OnUdpDatagramReceived(byte[] data, IPEndPoint from)
+		{
+			OnPacketReceived(netClient, data);
+		}
+
 		private void OnPacketReceived(NetClient netClient, byte[] bytes)
 		{
 			try
@@ -79,10 +106,10 @@ namespace EliminatorKaedeMP
 				{
 				case S2CPacketID.GameJoinInfo:
 				{
-					// Receive all information about the game
 					GameJoinInfoData joinInfo = GameJoinInfoData.Read(reader);
 					uint playerID = joinInfo.PlayerID;
 					int sceneID = joinInfo.SceneID;
+					SendUdpHandshake(playerID); // register our UDP endpoint with the server
 					Plugin.CallOnMainThread(() =>
 					{
 						GameNet.CreateSelfPlayer(netClient, playerID);

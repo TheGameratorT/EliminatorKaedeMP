@@ -21,7 +21,8 @@ namespace EliminatorKaedeMP
         PlayerEvent,     // 1 - discrete events
         PlayerHealth,    // 2 - 5Hz health state
         PlayerChangeChar,// 3
-        PlayerClothInfo  // 4
+        PlayerClothInfo, // 4
+        UdpHandshake,    // 5 - registers client UDP endpoint with server (payload: uint32 playerID)
     }
 
     // Discrete gameplay events (sent inside a PlayerEvent packet)
