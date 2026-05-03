@@ -547,16 +547,14 @@ namespace EliminatorKaedeMP
                                      player.IsCrouch());
             data.Sick          = player.Helth.Sick;
 
-            // Toilet event: sync the EventMotions animator layer so remote players
-            // see the correct adult-content animation without running the full state machine.
-            ToiletEventManager toiletMgr = player.Perf?.GetComponent<ToiletEventManager>();
-            if (toiletMgr != null)
+            // Toilet event: read the EventMotions layer directly from the animator.
+            // ToiletEventManager lives on the scene's toilet object, not on PlayerPref,
+            // so GetComponent from here always returns null for the local player.
             {
                 int evLayer = player.anim.GetLayerIndex("EventMotions");
                 if (evLayer >= 0 && player.anim.GetLayerWeight(evLayer) > 0.5f)
                 {
                     AnimatorStateInfo evInfo = player.anim.GetCurrentAnimatorStateInfo(evLayer);
-                    data.ToiletTypeID   = (byte)toiletMgr.toilet;
                     data.ToiletAnimHash = evInfo.fullPathHash;
                     data.ToiletAnimTime = evInfo.normalizedTime % 1f;
                 }

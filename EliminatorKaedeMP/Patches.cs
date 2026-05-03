@@ -52,6 +52,17 @@ namespace EliminatorKaedeMP
 			return !GameNet.IsNetGame();
 		}
 
+		// IgnorPlayerControl also disables PlayerControl, which halts EKMPPlayer.Update/
+		// LateUpdate during toilet events.  Let the original run (it sets Rigidbody
+		// kinematic, disables IK, etc.) but then re-enable PlayerControl so state packets
+		// keep firing.  PlayerAct_00/01 stay disabled — no weapon input during events.
+		[PatchAttr(typeof(GameManager), "IgnorPlayerControl", EPatchType.Postfix)]
+		static void GameManager_IgnorPlayerControl_Postfix(GameManager __instance)
+		{
+			if (!GameNet.IsNetGame()) return;
+			__instance.Perf.PlayerIncetance.GetComponent<PlayerControl>().enabled = true;
+		}
+
 		// PlayerPref ----------------------------------------------------------------
 
 		[PatchAttr(typeof(PlayerPref), "Awake", EPatchType.Prefix)]
