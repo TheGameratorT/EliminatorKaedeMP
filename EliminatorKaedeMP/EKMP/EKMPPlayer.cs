@@ -1,7 +1,9 @@
+using HarmonyLib;
 using K_PlayerControl;
 using K_PlayerControl.UI;
 using RootMotion.FinalIK;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using UnityEngine;
@@ -34,7 +36,6 @@ namespace EliminatorKaedeMP
         // Timers for periodic sends.
         private float stateSendTimer  = 0f;
         private float healthSendTimer = 0f;
-        private float _diagTimer = 0f;
 
         // Cached remote-player aim state applied from the interpolation buffer.
         private Vector3 remoteAimForward = Vector3.forward;
@@ -488,7 +489,9 @@ namespace EliminatorKaedeMP
         private void InitializeToiletEventManager(ToiletEventManager toiletMgr)
         {
             PlayerControl player = PlayerCtrl;
-            PlayerPref    pref   = player.Perf;
+            PlayerPref pref = player.Perf;
+            PlayerControl ogPlayer = GameNet.GetLocalPlayer();
+            ToiletEventManager ogToiletMgr = ogPlayer.Perf.GetComponent<ToiletEventManager>();
 
             toiletMgr.GM          = GameManager.Instance;
             toiletMgr.Perf        = pref;
@@ -504,6 +507,55 @@ namespace EliminatorKaedeMP
             toiletMgr.GameCamera  = pref.GameCamera;
             for (int i = 0; i < toiletMgr.mizutamariList.Length; i++)
                 toiletMgr.mizutamariList[i] = null;
+
+            toiletMgr.anim = player.GetComponent<Animator>();
+            toiletMgr.anim_pantus = player.transform.Find("pansu_00").GetComponent<Animator>();
+            toiletMgr.anim_feces = player.transform.Find("Feces_00").GetComponent<Animator>();
+            toiletMgr.anim_sextoy_2 = player.transform.Find("sextoy_02_onBed").GetComponent<Animator>();
+
+            toiletMgr.LerpTime = ogToiletMgr.LerpTime;
+            toiletMgr.backstep_distance = ogToiletMgr.backstep_distance;
+            toiletMgr.BackstepDistance = ogToiletMgr.BackstepDistance;
+            toiletMgr.movingRate = ogToiletMgr.movingRate;
+            toiletMgr.waitForsec = ogToiletMgr.waitForsec;
+            toiletMgr.lerpParam = ogToiletMgr.lerpParam;
+
+            toiletMgr.Urine_therdhold = ogToiletMgr.Urine_therdhold;
+            toiletMgr.Feces_therdhold = ogToiletMgr.Feces_therdhold;
+
+            toiletMgr.DropFeces = new List<GameObject>();
+            toiletMgr.DorpFecesCounst = 0;
+
+            toiletMgr.PissMat = ogToiletMgr.PissMat; // TODO separate material
+
+            toiletMgr.SexToys = CopyGameObjectArrayWithRelativePath(ogToiletMgr.SexToys, ogPlayer.transform, player.transform);
+            toiletMgr.ArmsList = CopyGameObjectArrayWithRelativePath(ogToiletMgr.ArmsList, ogPlayer.transform, player.transform);
+        }
+
+        private string GetRelativePath(Transform target, Transform root)
+        {
+            string path = target.name;
+            Transform current = target.parent;
+            while (current != null && current != root)
+            {
+                path = current.name + "/" + path;
+                current = current.parent;
+            }
+            return path;
+        }
+
+        private GameObject[] CopyGameObjectArrayWithRelativePath(GameObject[] sourceArray, Transform sourceRoot, Transform targetRoot)
+        {
+            GameObject[] result = new GameObject[sourceArray.Length];
+            for (int i = 0; i < sourceArray.Length; i++)
+            {
+                if (sourceArray[i] != null)
+                {
+                    string relativePath = GetRelativePath(sourceArray[i].transform, sourceRoot);
+                    result[i] = targetRoot.Find(relativePath).gameObject;
+                }
+            }
+            return result;
         }
 
         // ──────────────────────────────────────────────────────────────────────
@@ -769,13 +821,6 @@ namespace EliminatorKaedeMP
             if (PlayerCtrl == null) return;
 
             bool isLocal = GameNet.GetLocalPlayer() == PlayerCtrl;
-
-            _diagTimer += Time.deltaTime;
-            if (_diagTimer >= 3f)
-            {
-                _diagTimer = 0f;
-                Plugin.Log($"[DIAG] Update id={Info.ID} isLocal={isLocal} PlayerCtrl={(PlayerCtrl != null ? PlayerCtrl.name : "null")} GetLocalPlayer={(GameNet.GetLocalPlayer() != null ? GameNet.GetLocalPlayer().name : "null")}");
-            }
 
             if (isLocal)
             {

@@ -214,9 +214,11 @@ namespace EliminatorKaedeMP
 		[PatchAttr(typeof(ToiletEventManager), "Start", EPatchType.Prefix)]
 		static bool ToiletEventManager_Start_Prefix(ToiletEventManager __instance)
 		{
+			var localPlayer = GameNet.GetLocalPlayer();
+
 			// Only run if we are the local player.
 			// Let EKMPPlayer.InitializeToiletEventManager initialize.
-			return !EKMPPlayer.IsNetPlayerCtx;
+			return localPlayer.Perf.GetComponent<ToiletEventManager>() == __instance;
 		}
 
 		// Broadcast toilet state changes to other players when a key state is reached.
