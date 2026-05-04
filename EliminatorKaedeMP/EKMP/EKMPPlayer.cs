@@ -94,6 +94,13 @@ namespace EliminatorKaedeMP
                     Plugin.CallOnMainThread(() => OnClothInfoData(clothInfo));
                     break;
                 }
+                case C2SPacketID.ToiletState:
+                {
+                    ToiletStateData toiletData = ToiletStateData.Read(reader);
+                    BroadcastToiletStateData(toiletData);
+                    Plugin.CallOnMainThread(() => OnToiletStateData(toiletData));
+                    break;
+                }
                 }
             }
             catch (Exception ex) { Plugin.Log(ex); }
@@ -341,6 +348,7 @@ namespace EliminatorKaedeMP
             pref.LayerMaskInfo      = PlayerPref.Instance.LayerMaskInfo;
 
             prefObj.AddComponent<UI_weponIcon>();
+            InitializePantuOption(prefObj.AddComponent<UI_pantu_option>());
             InitializeToiletEventManager(prefObj.AddComponent<ToiletEventManager>());
             return pref;
         }
@@ -486,6 +494,16 @@ namespace EliminatorKaedeMP
             act01.player_ini = true;
         }
 
+        private void InitializePantuOption(UI_pantu_option pantuOpt)
+        {
+            PlayerControl player = PlayerCtrl;
+            PlayerControl ogPlayer = GameNet.GetLocalPlayer();
+            PlayerPref ogPref = ogPlayer.Perf;
+            UI_pantu_option ogPantuOpt = ogPref.GetComponent<UI_pantu_option>();
+
+            pantuOpt.PantuObject = CopyGameObjectArrayWithRelativePath(ogPantuOpt.PantuObject, ogPlayer.transform, player.transform);
+        }
+
         private void InitializeToiletEventManager(ToiletEventManager toiletMgr)
         {
             PlayerControl player = PlayerCtrl;
@@ -501,9 +519,9 @@ namespace EliminatorKaedeMP
             toiletMgr.PA          = player.GetComponent<PlayerAct_00>();
             toiletMgr.PH          = player.GetComponent<Player_Helth>();
             toiletMgr.EC          = player.GetComponent<EventControl>();
-            toiletMgr.CS          = null;
+            toiletMgr.CS          = pref.GetComponent<UI_pantu_option>();
             toiletMgr.ClothSys    = pref.GetComponent<UI_ClothSystem>();
-            toiletMgr.UI_behaviro = pref.GetComponent<UI_behaviorPanelManager>();
+            toiletMgr.UI_behaviro = ogToiletMgr.UI_behaviro;
             toiletMgr.GameCamera  = pref.GameCamera;
             for (int i = 0; i < toiletMgr.mizutamariList.Length; i++)
                 toiletMgr.mizutamariList[i] = null;
@@ -526,10 +544,12 @@ namespace EliminatorKaedeMP
             toiletMgr.DropFeces = new List<GameObject>();
             toiletMgr.DorpFecesCounst = 0;
 
-            toiletMgr.PissMat = ogToiletMgr.PissMat; // TODO separate material
-
             toiletMgr.SexToys = CopyGameObjectArrayWithRelativePath(ogToiletMgr.SexToys, ogPlayer.transform, player.transform);
             toiletMgr.ArmsList = CopyGameObjectArrayWithRelativePath(ogToiletMgr.ArmsList, ogPlayer.transform, player.transform);
+
+            // TODO decouple from local player
+            toiletMgr.PissMat = ogToiletMgr.PissMat;
+            toiletMgr.ArmButton = CopyGameObjectArrayWithRelativePath(ogToiletMgr.ArmsList, ogPlayer.transform, player.transform);
         }
 
         private string GetRelativePath(Transform target, Transform root)
@@ -719,36 +739,128 @@ namespace EliminatorKaedeMP
             case PlayerEventID.Grenade:
                 OnGrenadeEvent(data0);
                 break;
-            case PlayerEventID.ToiletStateChange:
-                OnToiletStateChangeEvent((ToiletEventManager.Type)data0, (ToiletEventManager.State)data1);
-                break;
             }
         }
 
-        public void BroadcastToiletStateChange(ToiletEventManager.Type toiletType, ToiletEventManager.State toiletState)
+        public void SendToiletStateData(ToiletEventManager.Type toiletType, ToiletEventManager.State toiletState, string toiletObjectPath = "", string startPointPath = "")
         {
-            Plugin.Log($"[TOILET BROADCAST] Sending toilet state change: type={toiletType}, state={toiletState} from player {Info.ID}");
-            BroadcastEventData(PlayerEventID.ToiletStateChange, (int)toiletType, (int)toiletState);
+            Plugin.Log($"[TOILET] Sending toilet state change: type={toiletType}, state={toiletState}, toiletObject={toiletObjectPath}, startPoint={startPointPath} from player {Info.ID}");
+            
+            ToiletStateData toiletData = new ToiletStateData
+            {
+                ToiletType = (int)toiletType,
+                ToiletState = (int)toiletState,
+                ToiletObjectPath = toiletObjectPath,
+                StartPointPath = startPointPath
+            };
+
+            if (GameNet.IsServer)
+            {
+                BroadcastToiletStateData(toiletData);
+            }
+            else
+            {
+                byte[] packet;
+                using (MemoryStream stream = new MemoryStream())
+                {
+                    using (BinaryWriter writer = new BinaryWriter(stream))
+                    {
+                        writer.Write((int)C2SPacketID.ToiletState);
+                        toiletData.Write(writer);
+                    }
+                    packet = stream.ToArray();
+                }
+
+                Client.SendPacket(packet);
+            }
         }
 
-        private void OnToiletStateChangeEvent(ToiletEventManager.Type toiletType, ToiletEventManager.State toiletState)
+        private void BroadcastToiletStateData(ToiletStateData toiletData)
         {
-            Plugin.Log($"[TOILET RECEIVED] Player {Info.ID} received toilet state change: type={toiletType}, state={toiletState}");
+            byte[] packet;
+            using (MemoryStream stream = new MemoryStream())
+            {
+                using (BinaryWriter writer = new BinaryWriter(stream))
+                {
+                    writer.Write((int)S2CPacketID.ToiletState);
+                    writer.Write(Info.ID);
+                    toiletData.Write(writer);
+                }
+                packet = stream.ToArray();
+            }
+            BroadcastPacket(packet);
+        }
+
+        public void OnToiletStateData(ToiletStateData toiletData)
+        {
+            Plugin.Log($"[TOILET RECEIVED] Player {Info.ID} received toilet state: type={toiletData.ToiletType}, state={toiletData.ToiletState}, toiletObject={toiletData.ToiletObjectPath}, startPoint={toiletData.StartPointPath}");
 
             // Remote player's ToiletEventManager needs to have its state updated.
-            // Find the ToiletEventManager in this player's prefab.
             PlayerPref pref = PlayerCtrl.Perf;
             ToiletEventManager toiletMgr = pref.GetComponent<ToiletEventManager>();
             if (toiletMgr != null)
             {
                 Plugin.Log($"[TOILET RECEIVED] Applying state change to toilet manager");
-                toiletMgr.toilet = toiletType;
-                toiletMgr.ToiletState = toiletState;
+                toiletMgr.toilet = (ToiletEventManager.Type)toiletData.ToiletType;
+                toiletMgr.ToiletState = (ToiletEventManager.State)toiletData.ToiletState;
+
+                // Apply object references using the paths from scene root
+                if (!string.IsNullOrEmpty(toiletData.ToiletObjectPath))
+                {
+                    GameObject found = FindGameObjectByPath(toiletData.ToiletObjectPath);
+                    if (found != null)
+                    {
+                        toiletMgr.ToiletObject = found;
+                        Plugin.Log($"[TOILET RECEIVED] Set ToiletObject: {toiletData.ToiletObjectPath}");
+                    }
+                    else
+                    {
+                        Plugin.Log($"[TOILET RECEIVED] WARNING: Could not find ToiletObject at path: {toiletData.ToiletObjectPath}");
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(toiletData.StartPointPath))
+                {
+                    GameObject found = FindGameObjectByPath(toiletData.StartPointPath);
+                    if (found != null)
+                    {
+                        toiletMgr.StartPoint = found;
+                        Plugin.Log($"[TOILET RECEIVED] Set StartPoint: {toiletData.StartPointPath}");
+                    }
+                    else
+                    {
+                        Plugin.Log($"[TOILET RECEIVED] WARNING: Could not find StartPoint at path: {toiletData.StartPointPath}");
+                    }
+                }
             }
             else
             {
                 Plugin.Log($"[TOILET RECEIVED] ERROR: Could not find ToiletEventManager for player {Info.ID}");
             }
+        }
+
+        // Find a GameObject by its scene-root-relative path (e.g., "Root/Child/Grandchild")
+        private static GameObject FindGameObjectByPath(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+                return null;
+            
+            string[] parts = path.Split('/');
+            GameObject root = GameObject.Find(parts[0]);
+            if (root == null)
+                return null;
+            
+            if (parts.Length == 1)
+                return root;
+            
+            Transform current = root.transform;
+            for (int i = 1; i < parts.Length; i++)
+            {
+                current = current.Find(parts[i]);
+                if (current == null)
+                    return null;
+            }
+            return current.gameObject;
         }
 
         // ══════════════════════════════════════════════════════════════════════

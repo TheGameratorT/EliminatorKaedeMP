@@ -184,6 +184,13 @@ namespace EliminatorKaedeMP
 					Plugin.CallOnMainThread(() => GameNet.GetPlayer(playerID).OnClothInfoData(clothInfo));
 					break;
 				}
+				case S2CPacketID.ToiletState:
+				{
+					uint playerID = reader.ReadUInt32();
+					ToiletStateData toiletData = ToiletStateData.Read(reader);
+					Plugin.CallOnMainThread(() => GameNet.GetPlayer(playerID).OnToiletStateData(toiletData));
+					break;
+				}
 				default:
 					break;
 				}

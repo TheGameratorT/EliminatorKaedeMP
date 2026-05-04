@@ -11,7 +11,8 @@ namespace EliminatorKaedeMP
         PlayerEvent,     // 5 - discrete events (replaces PlayerJump + PlayerCtrlKey + PlayerKnifeUse)
         PlayerHealth,    // 6 - 5Hz health state broadcast
         PlayerChangeChar,// 7
-        PlayerClothInfo  // 8
+        PlayerClothInfo, // 8
+        ToiletState      // 9 - toilet event synchronization
     }
 
     // Client -> Server
@@ -23,6 +24,7 @@ namespace EliminatorKaedeMP
         PlayerChangeChar,// 3
         PlayerClothInfo, // 4
         UdpHandshake,    // 5 - registers client UDP endpoint with server (payload: uint32 playerID)
+        ToiletState,     // 6 - toilet event synchronization
     }
 
     // Discrete gameplay events (sent inside a PlayerEvent packet)

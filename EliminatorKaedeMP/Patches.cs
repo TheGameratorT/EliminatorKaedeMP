@@ -231,35 +231,34 @@ namespace EliminatorKaedeMP
 			if (__instance.Player != localPlayer.gameObject)
 				return;
 
-			// Track the previous state to detect changes.
-			if (!s_toiletStateLookup.TryGetValue(__instance, out var prevState))
-				prevState = ToiletEventManager.State.NULL;
-
 			ToiletEventManager.State curState = __instance.ToiletState;
-			s_toiletStateLookup[__instance] = curState;
 
-			// Only broadcast on state change and only for "key states" that trigger effects.
-			if (curState == prevState)
+			// Only broadcast on state change.
+			if (curState == s_toiletPrevState)
 				return;
 
-			string stateName = curState.ToString();
-			bool isKeyState = stateName.EndsWith("_s") ||
-							  curState == ToiletEventManager.State.Toilet_End ||
-							  curState == ToiletEventManager.State.Idle;
-			if (!isKeyState)
+			s_toiletPrevState = curState;
+
+			// Determine if this is a key state that should be broadcast to remote players.
+			bool shouldBroadcast = IsKeyToiletState(curState, s_toiletPrevState);
+
+			if (!shouldBroadcast)
 			{
-				Plugin.Log($"[TOILET] State changed {prevState} -> {curState} but not a key state");
+				Plugin.Log($"[TOILET] State changed {s_toiletPrevState} -> {curState} but not a key state, not broadcasting");
 				return;
 			}
 
-			Plugin.Log($"[TOILET] Key state detected: {prevState} -> {curState}");
+			Plugin.Log($"[TOILET] Key state detected: {s_toiletPrevState} -> {curState}");
 
 			// Get the EKMPPlayer for this player and broadcast the state change
 			EKMPPlayer mpPlayer = GameNet.GetPlayer(localPlayer);
 			if (mpPlayer != null)
 			{
-				Plugin.Log($"[TOILET] Broadcasting toilet state change: type={__instance.toilet}, state={curState}");
-				mpPlayer.BroadcastToiletStateChange(__instance.toilet, curState);
+				// Build paths to ToiletObject and StartPoint relative to scene root
+				string toiletObjectPath = GetGameObjectPath(__instance.ToiletObject, null);
+				string startPointPath = GetGameObjectPath(__instance.StartPoint, null);
+
+				mpPlayer.SendToiletStateData(__instance.toilet, curState, toiletObjectPath, startPointPath);
 			}
 			else
 			{
@@ -267,30 +266,66 @@ namespace EliminatorKaedeMP
 			}
 		}
 
-		private static Dictionary<ToiletEventManager, ToiletEventManager.State> s_toiletStateLookup =
-			new Dictionary<ToiletEventManager, ToiletEventManager.State>();
+		// Get the relative path of a GameObject from a root transform
+		static string GetGameObjectPath(GameObject obj, Transform root)
+		{
+			if (obj == null)
+				return "";
 
-		// [PatchAttr(typeof(ToiletEventManager), "isOutPantu", EPatchType.Prefix)]
-		// static bool ToiletEventManager_isOutPantu_Prefix(ToiletEventManager __instance, ref bool __result)
-		// {
-		// 	if (__instance.CS == null)
-		// 	{
-		// 		__result = false;
-		// 		return false;
-		// 	}
-		// 	return true;
-		// }
+			string path = obj.name;
+			Transform current = obj.transform.parent;
+			while (current != null && current != root)
+			{
+				path = current.name + "/" + path;
+				current = current.parent;
+			}
+			return path;
+		}
 
-		// [PatchAttr(typeof(ToiletEventManager), "isSetPantu", EPatchType.Prefix)]
-		// static bool ToiletEventManager_isSetPantu_Prefix(ToiletEventManager __instance, ref bool __result)
-		// {
-		// 	if (__instance.CS == null)
-		// 	{
-		// 		__result = true;
-		// 		return false;
-		// 	}
-		// 	return true;
-		// }
+		// Determine which states are critical for synchronization across the network.
+		// Entry/exit points, toilet type selection, and major action starts should be broadcast.
+		static bool IsKeyToiletState(ToiletEventManager.State curState, ToiletEventManager.State prevState)
+		{
+			// Entry point: always broadcast when entering toilet
+			if (curState == ToiletEventManager.State.INI_RemoveWepon_s)
+				return true;
+
+			// Toilet type selection states: these determine which toilet action the player is doing.
+			// These do NOT end with "_s" but are critical for remote sync.
+			if (curState == ToiletEventManager.State.O_start ||      // Outside toilet
+				curState == ToiletEventManager.State.W_Start ||      // Washiki toilet
+				curState == ToiletEventManager.State.Y_start ||      // Yousiki toilet
+				curState == ToiletEventManager.State.B_start ||      // Bed
+				curState == ToiletEventManager.State.D_Start ||      // Danshi toilet
+				curState == ToiletEventManager.State.Closet_start || // Closet
+				curState == ToiletEventManager.State.Character_start) // Character changer
+				return true;
+
+			// Exit point: always broadcast when exiting toilet
+			if (curState == ToiletEventManager.State.Toilet_End)
+				return true;
+
+			// Major action starts: broadcast the initiation of significant actions.
+			// These are the "_s" states that trigger major animations/effects that remote players should see.
+			string stateName = curState.ToString();
+			if (stateName.EndsWith("_s"))
+			{
+				// Broadcast action start states that have visible/gameplay effects
+				// (piss, scat, ona, penetration, toy use, etc.)
+				// Skip purely transitional animation states like normal_to_Mpose_s
+				if (stateName.Contains("piss") || stateName.Contains("scat") || 
+					stateName.Contains("ona") || stateName.Contains("toy") ||
+					stateName.Contains("hipup") || stateName.Contains("aomuke") ||
+					stateName.Contains("utubuse") || stateName.Contains("mass") ||
+					stateName.Contains("Character") || stateName.Contains("Denial"))
+					return true;
+			}
+
+			// Everything else is not a key state
+			return false;
+		}
+
+		private static ToiletEventManager.State s_toiletPrevState = ToiletEventManager.State.NULL;
 
 		/*[PatchAttr(typeof(ToiletEventManager), "Show_IgnorUI", EPatchType.Prefix)]
 		static bool ToiletEventManager_Show_IgnorUI_Prefix(ToiletEventManager __instance)
