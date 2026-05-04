@@ -547,19 +547,6 @@ namespace EliminatorKaedeMP
                                      player.IsCrouch());
             data.Sick          = player.Helth.Sick;
 
-            // Toilet event: read the EventMotions layer directly from the animator.
-            // ToiletEventManager lives on the scene's toilet object, not on PlayerPref,
-            // so GetComponent from here always returns null for the local player.
-            {
-                int evLayer = player.anim.GetLayerIndex("EventMotions");
-                if (evLayer >= 0 && player.anim.GetLayerWeight(evLayer) > 0.5f)
-                {
-                    AnimatorStateInfo evInfo = player.anim.GetCurrentAnimatorStateInfo(evLayer);
-                    data.ToiletAnimHash = evInfo.fullPathHash;
-                    data.ToiletAnimTime = evInfo.normalizedTime % 1f;
-                }
-            }
-
             if (GameNet.IsServer)
             {
                 BroadcastStateData(data);
@@ -680,6 +667,35 @@ namespace EliminatorKaedeMP
             case PlayerEventID.Grenade:
                 OnGrenadeEvent(data0);
                 break;
+            case PlayerEventID.ToiletStateChange:
+                OnToiletStateChangeEvent((ToiletEventManager.Type)data0, (ToiletEventManager.State)data1);
+                break;
+            }
+        }
+
+        public void BroadcastToiletStateChange(ToiletEventManager.Type toiletType, ToiletEventManager.State toiletState)
+        {
+            Plugin.Log($"[TOILET BROADCAST] Sending toilet state change: type={toiletType}, state={toiletState} from player {Info.ID}");
+            BroadcastEventData(PlayerEventID.ToiletStateChange, (int)toiletType, (int)toiletState);
+        }
+
+        private void OnToiletStateChangeEvent(ToiletEventManager.Type toiletType, ToiletEventManager.State toiletState)
+        {
+            Plugin.Log($"[TOILET RECEIVED] Player {Info.ID} received toilet state change: type={toiletType}, state={toiletState}");
+
+            // Remote player's ToiletEventManager needs to have its state updated.
+            // Find the ToiletEventManager in this player's prefab.
+            PlayerPref pref = PlayerCtrl.Perf;
+            ToiletEventManager toiletMgr = pref.GetComponent<ToiletEventManager>();
+            if (toiletMgr != null)
+            {
+                Plugin.Log($"[TOILET RECEIVED] Applying state change to toilet manager");
+                toiletMgr.toilet = toiletType;
+                toiletMgr.ToiletState = toiletState;
+            }
+            else
+            {
+                Plugin.Log($"[TOILET RECEIVED] ERROR: Could not find ToiletEventManager for player {Info.ID}");
             }
         }
 
@@ -983,24 +999,6 @@ namespace EliminatorKaedeMP
             // Sick — drive the health component so the animator parameter picks it up.
             if (player.Helth != null)
                 player.Helth.Sick = snap.Sick;
-
-            // Toilet event — drive the EventMotions animator layer directly from the
-            // snapshot.  The ToiletEventManager.FixedUpdate is skipped for remote
-            // players (patched in Patches.cs) so we must advance animations here.
-            int evLayer = anim.GetLayerIndex("EventMotions");
-            if (evLayer >= 0)
-            {
-                if (snap.ToiletAnimHash != 0)
-                {
-                    anim.SetLayerWeight(evLayer, 1f);
-                    if (anim.GetCurrentAnimatorStateInfo(evLayer).fullPathHash != snap.ToiletAnimHash)
-                        anim.Play(snap.ToiletAnimHash, evLayer, snap.ToiletAnimTime);
-                }
-                else if (anim.GetLayerWeight(evLayer) > 0f)
-                {
-                    anim.SetLayerWeight(evLayer, 0f);
-                }
-            }
 
             // PlayerState / FlyState – only apply "safe" state transitions here.
             // Discrete event-driven transitions (damage, vomit, etc.) are handled

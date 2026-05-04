@@ -1,6 +1,7 @@
 using K_PlayerControl;
 using K_PlayerControl.UI;
 using RG_GameCamera.CharacterController;
+using System.Collections.Generic;
 using UnityEngine;
 using static EliminatorKaedeMP.PatchAttr;
 
@@ -213,39 +214,81 @@ namespace EliminatorKaedeMP
 		[PatchAttr(typeof(ToiletEventManager), "Start", EPatchType.Prefix)]
 		static bool ToiletEventManager_Start_Prefix(ToiletEventManager __instance)
 		{
-			// Only run if we are the local player
+			// Only run if we are the local player.
+			// Let EKMPPlayer.InitializeToiletEventManager initialize.
 			return !EKMPPlayer.IsNetPlayerCtx;
 		}
 
-		// Skip the state machine for remote players; their EventMotions animator layer
-		// is driven directly from the network snapshot in ApplyInterpolatedState.
-		[PatchAttr(typeof(ToiletEventManager), "FixedUpdate", EPatchType.Prefix)]
-		static bool ToiletEventManager_FixedUpdate_Prefix(ToiletEventManager __instance)
+		// Broadcast toilet state changes to other players when a key state is reached.
+		[PatchAttr(typeof(ToiletEventManager), "FixedUpdate", EPatchType.Postfix)]
+		static void ToiletEventManager_FixedUpdate_Postfix(ToiletEventManager __instance)
 		{
-			return !(__instance.Perf is EKMPPlayerPref);
+			var localPlayer = GameNet.GetLocalPlayer();
+
+			// Only send broadcasts from the local player, not from remote puppets.
+			if (__instance.Player != localPlayer.gameObject)
+				return;
+
+			// Track the previous state to detect changes.
+			if (!s_toiletStateLookup.TryGetValue(__instance, out var prevState))
+				prevState = ToiletEventManager.State.NULL;
+
+			ToiletEventManager.State curState = __instance.ToiletState;
+			s_toiletStateLookup[__instance] = curState;
+
+			// Only broadcast on state change and only for "key states" that trigger effects.
+			if (curState == prevState)
+				return;
+
+			string stateName = curState.ToString();
+			bool isKeyState = stateName.EndsWith("_s") ||
+							  curState == ToiletEventManager.State.Toilet_End ||
+							  curState == ToiletEventManager.State.Idle;
+			if (!isKeyState)
+			{
+				Plugin.Log($"[TOILET] State changed {prevState} -> {curState} but not a key state");
+				return;
+			}
+
+			Plugin.Log($"[TOILET] Key state detected: {prevState} -> {curState}");
+
+			// Get the EKMPPlayer for this player and broadcast the state change
+			EKMPPlayer mpPlayer = GameNet.GetPlayer(localPlayer);
+			if (mpPlayer != null)
+			{
+				Plugin.Log($"[TOILET] Broadcasting toilet state change: type={__instance.toilet}, state={curState}");
+				mpPlayer.BroadcastToiletStateChange(__instance.toilet, curState);
+			}
+			else
+			{
+				Plugin.Log($"[TOILET] ERROR: Could not find EKMPPlayer for toilet state change");
+			}
 		}
 
-		[PatchAttr(typeof(ToiletEventManager), "isOutPantu", EPatchType.Prefix)]
-		static bool ToiletEventManager_isOutPantu_Prefix(ToiletEventManager __instance, ref bool __result)
-		{
-			if (__instance.CS == null)
-			{
-				__result = false;
-				return false;
-			}
-			return true;
-		}
+		private static Dictionary<ToiletEventManager, ToiletEventManager.State> s_toiletStateLookup =
+			new Dictionary<ToiletEventManager, ToiletEventManager.State>();
 
-		[PatchAttr(typeof(ToiletEventManager), "isSetPantu", EPatchType.Prefix)]
-		static bool ToiletEventManager_isSetPantu_Prefix(ToiletEventManager __instance, ref bool __result)
-		{
-			if (__instance.CS == null)
-			{
-				__result = true;
-				return false;
-			}
-			return true;
-		}
+		// [PatchAttr(typeof(ToiletEventManager), "isOutPantu", EPatchType.Prefix)]
+		// static bool ToiletEventManager_isOutPantu_Prefix(ToiletEventManager __instance, ref bool __result)
+		// {
+		// 	if (__instance.CS == null)
+		// 	{
+		// 		__result = false;
+		// 		return false;
+		// 	}
+		// 	return true;
+		// }
+
+		// [PatchAttr(typeof(ToiletEventManager), "isSetPantu", EPatchType.Prefix)]
+		// static bool ToiletEventManager_isSetPantu_Prefix(ToiletEventManager __instance, ref bool __result)
+		// {
+		// 	if (__instance.CS == null)
+		// 	{
+		// 		__result = true;
+		// 		return false;
+		// 	}
+		// 	return true;
+		// }
 
 		/*[PatchAttr(typeof(ToiletEventManager), "Show_IgnorUI", EPatchType.Prefix)]
 		static bool ToiletEventManager_Show_IgnorUI_Prefix(ToiletEventManager __instance)

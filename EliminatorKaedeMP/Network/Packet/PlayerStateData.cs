@@ -18,9 +18,6 @@ namespace EliminatorKaedeMP
         public int FlyStateID;          // PlayerControl.Fly cast to int
         public byte AnimFlags;          // bitmask: bit0=grounded, bit1=aiming, bit2=crouching
         public float Sick;              // drives Sick/Sick_Speed animator params
-        public byte  ToiletTypeID;      // ToiletEventManager.Type; 0 if not in toilet event
-        public int   ToiletAnimHash;    // EventMotions layer fullPathHash; 0 if not in toilet
-        public float ToiletAnimTime;    // normalized time (0-1) in that state
 
         public bool IsGrounded  => (AnimFlags & 0x01) != 0;
         public bool IsAiming    => (AnimFlags & 0x02) != 0;
@@ -47,9 +44,6 @@ namespace EliminatorKaedeMP
             writer.Write(FlyStateID);
             writer.Write(AnimFlags);
             writer.Write(Sick);
-            writer.Write(ToiletTypeID);
-            writer.Write(ToiletAnimHash);
-            writer.Write(ToiletAnimTime);
         }
 
         public static PlayerStateData Read(BinaryReader reader)
@@ -65,9 +59,6 @@ namespace EliminatorKaedeMP
             d.FlyStateID     = reader.ReadInt32();
             d.AnimFlags      = reader.ReadByte();
             d.Sick           = reader.ReadSingle();
-            d.ToiletTypeID   = reader.ReadByte();
-            d.ToiletAnimHash = reader.ReadInt32();
-            d.ToiletAnimTime = reader.ReadSingle();
             return d;
         }
     }

@@ -31,9 +31,6 @@ namespace EliminatorKaedeMP
             public int        FlyStateID;
             public byte       AnimFlags;
             public float      Sick;
-            public byte       ToiletTypeID;
-            public int        ToiletAnimHash; // 0 = not in a toilet event
-            public float      ToiletAnimTime;
 
             public bool IsGrounded  => (AnimFlags & 0x01) != 0;
             public bool IsAiming    => (AnimFlags & 0x02) != 0;
@@ -60,9 +57,6 @@ namespace EliminatorKaedeMP
             s.FlyStateID     = data.FlyStateID;
             s.AnimFlags      = data.AnimFlags;
             s.Sick           = data.Sick;
-            s.ToiletTypeID   = data.ToiletTypeID;
-            s.ToiletAnimHash = data.ToiletAnimHash;
-            s.ToiletAnimTime = data.ToiletAnimTime;
 
             snapshots[snapshotHead] = s;
             snapshotHead = (snapshotHead + 1) % SnapshotBufferSize;
@@ -138,9 +132,6 @@ namespace EliminatorKaedeMP
             result.PlayerStateID  = t < 0.5f ? a.PlayerStateID  : b.PlayerStateID;
             result.FlyStateID     = t < 0.5f ? a.FlyStateID     : b.FlyStateID;
             result.AnimFlags      = t < 0.5f ? a.AnimFlags       : b.AnimFlags;
-            result.ToiletTypeID   = t < 0.5f ? a.ToiletTypeID   : b.ToiletTypeID;
-            result.ToiletAnimHash = t < 0.5f ? a.ToiletAnimHash  : b.ToiletAnimHash;
-            result.ToiletAnimTime = t < 0.5f ? a.ToiletAnimTime  : b.ToiletAnimTime;
             return true;
         }
     }

@@ -37,5 +37,6 @@ namespace EliminatorKaedeMP
         Reload = 6,           // data0 = unused
         WeaponSwitch = 7,     // data0 = weapon slot (0=main, 1=sub)
         Grenade = 8,          // data0 = grenade state (GranadeState enum)
+        ToiletStateChange = 9, // data0 = ToiletEventManager.Type, data1 = ToiletEventManager.State
     }
 }
