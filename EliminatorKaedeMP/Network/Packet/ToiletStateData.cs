@@ -10,6 +10,8 @@ namespace EliminatorKaedeMP
         public int ToiletState;          // ToiletEventManager.State cast to int
         public string ToiletObjectPath;  // Relative path to toilet object (can be empty)
         public string StartPointPath;    // Relative path to start point (can be empty)
+        public string WayPointPath;      // Relative path to waypoint (can be empty, used for character interactions)
+        public string CameraPositionPath; // Relative path to camera position (can be empty, used for closet scenes)
 
         public void Write(BinaryWriter writer)
         {
@@ -17,6 +19,8 @@ namespace EliminatorKaedeMP
             writer.Write(ToiletState);
             writer.Write(ToiletObjectPath ?? "");
             writer.Write(StartPointPath ?? "");
+            writer.Write(WayPointPath ?? "");
+            writer.Write(CameraPositionPath ?? "");
         }
 
         public static ToiletStateData Read(BinaryReader reader)
@@ -26,6 +30,8 @@ namespace EliminatorKaedeMP
             d.ToiletState = reader.ReadInt32();
             d.ToiletObjectPath = reader.ReadString();
             d.StartPointPath = reader.ReadString();
+            d.WayPointPath = reader.ReadString();
+            d.CameraPositionPath = reader.ReadString();
             return d;
         }
     }

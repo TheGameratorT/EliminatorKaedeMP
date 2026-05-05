@@ -522,6 +522,7 @@ namespace EliminatorKaedeMP
             toiletMgr.CS          = pref.GetComponent<UI_pantu_option>();
             toiletMgr.ClothSys    = pref.GetComponent<UI_ClothSystem>();
             toiletMgr.UI_behaviro = ogToiletMgr.UI_behaviro;
+            toiletMgr.BehaviorPanel = ogToiletMgr.BehaviorPanel;
             toiletMgr.GameCamera  = pref.GameCamera;
             for (int i = 0; i < toiletMgr.mizutamariList.Length; i++)
                 toiletMgr.mizutamariList[i] = null;
@@ -742,16 +743,18 @@ namespace EliminatorKaedeMP
             }
         }
 
-        public void SendToiletStateData(ToiletEventManager.Type toiletType, ToiletEventManager.State toiletState, string toiletObjectPath = "", string startPointPath = "")
+        public void SendToiletStateData(ToiletEventManager.Type toiletType, ToiletEventManager.State toiletState, string toiletObjectPath = "", string startPointPath = "", string wayPointPath = "", string cameraPositionPath = "")
         {
             Plugin.Log($"[TOILET] Sending toilet state change: type={toiletType}, state={toiletState}, toiletObject={toiletObjectPath}, startPoint={startPointPath} from player {Info.ID}");
-            
+
             ToiletStateData toiletData = new ToiletStateData
             {
                 ToiletType = (int)toiletType,
                 ToiletState = (int)toiletState,
                 ToiletObjectPath = toiletObjectPath,
-                StartPointPath = startPointPath
+                StartPointPath = startPointPath,
+                WayPointPath = wayPointPath,
+                CameraPositionPath = cameraPositionPath
             };
 
             if (GameNet.IsServer)
@@ -801,8 +804,13 @@ namespace EliminatorKaedeMP
             if (toiletMgr != null)
             {
                 Plugin.Log($"[TOILET RECEIVED] Applying state change to toilet manager");
+
+                ToiletEventManager.State newState = (ToiletEventManager.State)toiletData.ToiletState;
+                bool wasInToilet = IsInToiletEvent(toiletMgr.ToiletState);
+                bool enteringToilet = IsInToiletEvent(newState);
+
                 toiletMgr.toilet = (ToiletEventManager.Type)toiletData.ToiletType;
-                toiletMgr.ToiletState = (ToiletEventManager.State)toiletData.ToiletState;
+                toiletMgr.ToiletState = newState;
 
                 // Apply object references using the paths from scene root
                 if (!string.IsNullOrEmpty(toiletData.ToiletObjectPath))
@@ -832,11 +840,91 @@ namespace EliminatorKaedeMP
                         Plugin.Log($"[TOILET RECEIVED] WARNING: Could not find StartPoint at path: {toiletData.StartPointPath}");
                     }
                 }
+
+                if (!string.IsNullOrEmpty(toiletData.WayPointPath))
+                {
+                    GameObject found = FindGameObjectByPath(toiletData.WayPointPath);
+                    if (found != null)
+                    {
+                        toiletMgr.WayPoint = found;
+                        Plugin.Log($"[TOILET RECEIVED] Set WayPoint: {toiletData.WayPointPath}");
+                    }
+                    else
+                    {
+                        Plugin.Log($"[TOILET RECEIVED] WARNING: Could not find WayPoint at path: {toiletData.WayPointPath}");
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(toiletData.CameraPositionPath))
+                {
+                    GameObject found = FindGameObjectByPath(toiletData.CameraPositionPath);
+                    if (found != null)
+                    {
+                        toiletMgr.cameraPosition = found;
+                        Plugin.Log($"[TOILET RECEIVED] Set CameraPosition: {toiletData.CameraPositionPath}");
+                    }
+                    else
+                    {
+                        Plugin.Log($"[TOILET RECEIVED] WARNING: Could not find CameraPosition at path: {toiletData.CameraPositionPath}");
+                    }
+                }
+
+                // Handle full toilet mode setup/teardown for remote players
+                if (!wasInToilet && enteringToilet)
+                {
+                    // Entering toilet: disable player control systems (mirroring IgnorPlayerControl)
+                    Plugin.Log($"[TOILET RECEIVED] Disabling controls for remote player");
+                    PlayerCtrl.GetComponent<PlayerControl>().enabled = false;
+                    PlayerCtrl.GetComponent<PlayerAct_00>().enabled = false;
+                    PlayerCtrl.GetComponent<PlayerAct_01>().enabled = false;
+                    PlayerCtrl.GetComponent<Rigidbody>().useGravity = false;
+                    PlayerCtrl.GetComponent<Rigidbody>().isKinematic = true;
+                    PlayerCtrl.GetComponent<Animator>().SetFloat("Speed", 0f);
+                    PlayerCtrl.GetComponent<FullBodyBipedIK>().enabled = false;
+                    PlayerCtrl.GetComponent<AimIK>().enabled = false;
+
+                    // Also disable IK on all sync animators
+                    foreach (Animator syncAnim in pref.SyncAnimator)
+                    {
+                        syncAnim.gameObject.GetComponent<FullBodyBipedIK>().enabled = false;
+                        syncAnim.gameObject.GetComponent<AimIK>().enabled = false;
+                        syncAnim.SetFloat("Speed", 0f);
+                    }
+                }
+                else if (wasInToilet && !enteringToilet)
+                {
+                    // Exiting toilet: re-enable player control systems (mirroring EnablePlayerControl)
+                    Plugin.Log($"[TOILET RECEIVED] Enabling controls for remote player");
+                    PlayerCtrl.GetComponent<PlayerControl>().enabled = true;
+                    PlayerCtrl.GetComponent<PlayerAct_00>().enabled = true;
+                    PlayerCtrl.GetComponent<PlayerAct_01>().enabled = true;
+                    PlayerCtrl.GetComponent<Rigidbody>().useGravity = true;
+                    PlayerCtrl.GetComponent<Rigidbody>().isKinematic = false;
+                    PlayerCtrl.GetComponent<FullBodyBipedIK>().enabled = true;
+                    PlayerCtrl.GetComponent<AimIK>().enabled = true;
+
+                    // Also re-enable IK on all sync animators
+                    foreach (Animator syncAnim in pref.SyncAnimator)
+                    {
+                        syncAnim.gameObject.GetComponent<FullBodyBipedIK>().enabled = true;
+                        syncAnim.gameObject.GetComponent<AimIK>().enabled = true;
+                    }
+                }
             }
             else
             {
                 Plugin.Log($"[TOILET RECEIVED] ERROR: Could not find ToiletEventManager for player {Info.ID}");
             }
+        }
+
+        private bool IsInToiletEvent(ToiletEventManager.State state)
+        {
+            // Consider player in toilet event if not in these exit/idle states
+            return state != ToiletEventManager.State.NULL &&
+                   state != ToiletEventManager.State.Toilet_End &&
+                   state != ToiletEventManager.State.Toilet_Disable &&
+                   state != ToiletEventManager.State.DO_nothing &&
+                   state != ToiletEventManager.State.Idle;
         }
 
         // Find a GameObject by its scene-root-relative path (e.g., "Root/Child/Grandchild")
