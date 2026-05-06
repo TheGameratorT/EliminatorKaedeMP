@@ -553,6 +553,49 @@ namespace EliminatorKaedeMP
             toiletMgr.ArmButton = CopyGameObjectArrayWithRelativePath(ogToiletMgr.ArmsList, ogPlayer.transform, player.transform);
         }
 
+        // ══════════════════════════════════════════════════════════════════════
+        // TOILET EVENT MANAGEMENT (helper methods for control/animator setup)
+        // ══════════════════════════════════════════════════════════════════════
+
+        public void SetupToiletAnimators(ToiletEventManager toiletMgr, PlayerPref pref, bool usingToilet)
+        {
+            PlayerControl playerCtrl = pref.PlayerIncetance.GetComponent<PlayerControl>();
+            Animator anim = playerCtrl.GetComponent<Animator>();
+
+            playerCtrl.enabled = !usingToilet;
+            playerCtrl.GetComponent<PlayerAct_00>().enabled = !usingToilet;
+            playerCtrl.GetComponent<PlayerAct_01>().enabled = !usingToilet;
+            playerCtrl.GetComponent<Rigidbody>().useGravity = !usingToilet;
+            playerCtrl.GetComponent<Rigidbody>().isKinematic = usingToilet;
+
+            playerCtrl.GetComponent<FullBodyBipedIK>().enabled = !usingToilet;
+            playerCtrl.GetComponent<AimIK>().enabled = !usingToilet;
+
+            // Disable IK on all sync animators
+            foreach (Animator syncAnim in pref.SyncAnimator)
+            {
+                syncAnim.gameObject.GetComponent<FullBodyBipedIK>().enabled = !usingToilet;
+                syncAnim.gameObject.GetComponent<AimIK>().enabled = !usingToilet;
+            }
+            
+            if (usingToilet)
+            {
+                playerCtrl.PlayerState = PlayerControl.State.IgnoreControl;
+
+                anim.SetFloat("Speed", 0f);
+                foreach (Animator syncAnim in pref.SyncAnimator)
+                    syncAnim.SetFloat("Speed", 0f);
+            }
+            else
+            {
+                playerCtrl.PlayerState = PlayerControl.State.Playable;
+                playerCtrl.IgnorAiming();
+            }
+
+            toiletMgr.anim_feces.gameObject.SetActive(usingToilet);
+            toiletMgr.anim_pantus.gameObject.SetActive(usingToilet);
+        }
+
         private string GetRelativePath(Transform target, Transform root)
         {
             string path = target.name;
@@ -806,9 +849,6 @@ namespace EliminatorKaedeMP
                 Plugin.Log($"[TOILET RECEIVED] Applying state change to toilet manager");
 
                 ToiletEventManager.State newState = (ToiletEventManager.State)toiletData.ToiletState;
-                bool wasInToilet = IsInToiletEvent(toiletMgr.ToiletState);
-                bool enteringToilet = IsInToiletEvent(newState);
-
                 toiletMgr.toilet = (ToiletEventManager.Type)toiletData.ToiletType;
                 toiletMgr.ToiletState = newState;
 
@@ -869,47 +909,8 @@ namespace EliminatorKaedeMP
                     }
                 }
 
-                // Handle full toilet mode setup/teardown for remote players
-                if (!wasInToilet && enteringToilet)
-                {
-                    // Entering toilet: disable player control systems (mirroring IgnorPlayerControl)
-                    Plugin.Log($"[TOILET RECEIVED] Disabling controls for remote player");
-                    PlayerCtrl.GetComponent<PlayerControl>().enabled = false;
-                    PlayerCtrl.GetComponent<PlayerAct_00>().enabled = false;
-                    PlayerCtrl.GetComponent<PlayerAct_01>().enabled = false;
-                    PlayerCtrl.GetComponent<Rigidbody>().useGravity = false;
-                    PlayerCtrl.GetComponent<Rigidbody>().isKinematic = true;
-                    PlayerCtrl.GetComponent<Animator>().SetFloat("Speed", 0f);
-                    PlayerCtrl.GetComponent<FullBodyBipedIK>().enabled = false;
-                    PlayerCtrl.GetComponent<AimIK>().enabled = false;
-
-                    // Also disable IK on all sync animators
-                    foreach (Animator syncAnim in pref.SyncAnimator)
-                    {
-                        syncAnim.gameObject.GetComponent<FullBodyBipedIK>().enabled = false;
-                        syncAnim.gameObject.GetComponent<AimIK>().enabled = false;
-                        syncAnim.SetFloat("Speed", 0f);
-                    }
-                }
-                else if (wasInToilet && !enteringToilet)
-                {
-                    // Exiting toilet: re-enable player control systems (mirroring EnablePlayerControl)
-                    Plugin.Log($"[TOILET RECEIVED] Enabling controls for remote player");
-                    PlayerCtrl.GetComponent<PlayerControl>().enabled = true;
-                    PlayerCtrl.GetComponent<PlayerAct_00>().enabled = true;
-                    PlayerCtrl.GetComponent<PlayerAct_01>().enabled = true;
-                    PlayerCtrl.GetComponent<Rigidbody>().useGravity = true;
-                    PlayerCtrl.GetComponent<Rigidbody>().isKinematic = false;
-                    PlayerCtrl.GetComponent<FullBodyBipedIK>().enabled = true;
-                    PlayerCtrl.GetComponent<AimIK>().enabled = true;
-
-                    // Also re-enable IK on all sync animators
-                    foreach (Animator syncAnim in pref.SyncAnimator)
-                    {
-                        syncAnim.gameObject.GetComponent<FullBodyBipedIK>().enabled = true;
-                        syncAnim.gameObject.GetComponent<AimIK>().enabled = true;
-                    }
-                }
+                // Control disabling/enabling is now handled by patched EnableToilet and DisableToilet methods
+                // based on IsNetPlayerCtx flag during FixedUpdate
             }
             else
             {

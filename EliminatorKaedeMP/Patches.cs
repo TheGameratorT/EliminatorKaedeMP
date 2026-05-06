@@ -221,54 +221,56 @@ namespace EliminatorKaedeMP
 			return localPlayer.Perf.GetComponent<ToiletEventManager>() == __instance;
 		}
 
-		// Set network context flag for remote players during FixedUpdate
+		// Broadcast toilet state changes to other players when a key state is reached.
+		// Also set network context flag for remote players during FixedUpdate
 		[PatchAttr(typeof(ToiletEventManager), "FixedUpdate", EPatchType.Prefix)]
-		static void ToiletEventManager_FixedUpdate_Prefix(ToiletEventManager __instance)
+		static bool ToiletEventManager_FixedUpdate_Prefix(ToiletEventManager __instance)
 		{
 			var localPlayer = GameNet.GetLocalPlayer();
+
 			if (__instance.Player != localPlayer.gameObject)
 			{
-				// Remote player toilet manager: set flag so UI systems skip local-only operations
+				// Remote player
+
+				// Set flag so UI systems skip local-only operations
 				EKMPPlayer.IsNetPlayerCtx = true;
+
+				EKMPPlayer mpPlayer = GameNet.GetPlayer(__instance.PC);
+
+				// Replace Toilet_Disable state
+				if (__instance.ToiletState == ToiletEventManager.State.Toilet_Disable)
+				{
+					mpPlayer.SetupToiletAnimators(__instance, __instance.Perf, false);
+					__instance.ToiletState = ToiletEventManager.State.DO_nothing;
+					return false;
+				}
+
+				// Do not broadcast state
+				return true;
 			}
-		}
-
-		// Broadcast toilet state changes to other players when a key state is reached.
-		// Also unset network context flag after FixedUpdate completes.
-		[PatchAttr(typeof(ToiletEventManager), "FixedUpdate", EPatchType.Postfix)]
-		static void ToiletEventManager_FixedUpdate_Postfix(ToiletEventManager __instance)
-		{
-			// Always unset network context flag
-			EKMPPlayer.IsNetPlayerCtx = false;
-
-			var localPlayer = GameNet.GetLocalPlayer();
-
-			// Only send broadcasts from the local player, not from remote puppets.
-			if (__instance.Player != localPlayer.gameObject)
-				return;
 
 			ToiletEventManager.State curState = __instance.ToiletState;
 
 			// Only broadcast on state change.
 			if (curState == s_toiletPrevState)
-				return;
+				return true;
 
 			s_toiletPrevState = curState;
 
 			// Determine if this is a key state that should be broadcast to remote players.
-			bool shouldBroadcast = IsKeyToiletState(curState, s_toiletPrevState);
+			bool shouldBroadcast = IsKeyToiletState(curState);
 
 			if (!shouldBroadcast)
 			{
 				Plugin.Log($"[TOILET] State changed {s_toiletPrevState} -> {curState} but not a key state, not broadcasting");
-				return;
+				return true;
 			}
 
 			Plugin.Log($"[TOILET] Key state detected: {s_toiletPrevState} -> {curState}");
 
 			// Get the EKMPPlayer for this player and broadcast the state change
-			EKMPPlayer mpPlayer = GameNet.GetPlayer(localPlayer);
-			if (mpPlayer != null)
+			EKMPPlayer mpLocalPlayer = GameNet.GetPlayer(localPlayer);
+			if (mpLocalPlayer != null)
 			{
 				// Build paths to toilet-related objects relative to scene root
 				string toiletObjectPath = GetGameObjectPath(__instance.ToiletObject, null);
@@ -276,12 +278,22 @@ namespace EliminatorKaedeMP
 				string wayPointPath = GetGameObjectPath(__instance.WayPoint, null);
 				string cameraPositionPath = GetGameObjectPath(__instance.cameraPosition, null);
 
-				mpPlayer.SendToiletStateData(__instance.toilet, curState, toiletObjectPath, startPointPath, wayPointPath, cameraPositionPath);
+				mpLocalPlayer.SendToiletStateData(__instance.toilet, curState, toiletObjectPath, startPointPath, wayPointPath, cameraPositionPath);
 			}
 			else
 			{
 				Plugin.Log($"[TOILET] ERROR: Could not find EKMPPlayer for toilet state change");
 			}
+
+			return true;
+		}
+
+		// Unset network context flag after FixedUpdate completes.
+		[PatchAttr(typeof(ToiletEventManager), "FixedUpdate", EPatchType.Postfix)]
+		static void ToiletEventManager_FixedUpdate_Postfix()
+		{
+			// Always unset network context flag
+			EKMPPlayer.IsNetPlayerCtx = false;
 		}
 
 		// Get the relative path of a GameObject from a root transform
@@ -300,99 +312,108 @@ namespace EliminatorKaedeMP
 			return path;
 		}
 
-		// // Determine which states are critical for synchronization across the network.
-		// // Entry/exit points, toilet type selection, major action starts, and pose/animation changes should be broadcast.
-		// static bool IsKeyToiletState(ToiletEventManager.State curState, ToiletEventManager.State prevState)
-		// {
-		// 	// Entry and initialization states: must broadcast entire initialization sequence
-		// 	// so remote players' state machine progresses through all setup steps
-		// 	if (curState == ToiletEventManager.State.INI_RemoveWepon_s ||
-		// 		curState == ToiletEventManager.State.INI_NoArms)
-		// 		return true;
+		static readonly ToiletEventManager.State[] KeyToiletStates =
+		{
+			// Entry and initialization states
+			ToiletEventManager.State.INI_RemoveWepon_s,
+			ToiletEventManager.State.INI_NoArms,
 
-		// 	// Everything else is not a key state
-		// 	return false;
-		// }
+			// Danshi toilet actions
+			ToiletEventManager.State.D_piss_A_s,
+			ToiletEventManager.State.D_piss_B_s,
+			ToiletEventManager.State.D_scat_s,
+			ToiletEventManager.State.D_piss_C_s,
+
+			// Washiki toilet actions
+			ToiletEventManager.State.W_piss_A_s,
+			ToiletEventManager.State.W_piss_B_s,
+			ToiletEventManager.State.W_scat_A_s,
+			ToiletEventManager.State.W_scat_B_s,
+			ToiletEventManager.State.W_ona_A_s,
+			ToiletEventManager.State.W_ona_B_s,
+			ToiletEventManager.State.W_ona_C_s,
+			ToiletEventManager.State.W_ona_D_s,
+			ToiletEventManager.State.W_ona_M1_s,
+			ToiletEventManager.State.W_ona_M2_s,
+			ToiletEventManager.State.W_ona_Toy_s,
+			ToiletEventManager.State.W_ona_mpose_fi_s,
+			ToiletEventManager.State.W_ona_fi_normal_s,
+			ToiletEventManager.State.W_normal_to_Mpose_s,
+			ToiletEventManager.State.W_Mpose_to_normal_s,
+			ToiletEventManager.State.W_reset_to_normal,
+			ToiletEventManager.State.W_reset_to_mpose,
+			ToiletEventManager.State.W_pissScat_A_s,
+
+			// Yoshiki toilet actions
+			ToiletEventManager.State.Y_piss_normal_s,
+			ToiletEventManager.State.Y_piss_Mpose_s,
+			ToiletEventManager.State.Y_scat_00_s,
+			ToiletEventManager.State.Y_ona_Mpose_s,
+			ToiletEventManager.State.Y_ona_fi_s,
+			ToiletEventManager.State.Y_ToMpose_s,
+			ToiletEventManager.State.Y_ToNormal_s,
+
+			// Outside toilet actions
+			ToiletEventManager.State.O_shitdown,
+			ToiletEventManager.State.O_piss_dog_s,
+
+			// Bed actions
+			ToiletEventManager.State.B_SinglePlayStart,
+			ToiletEventManager.State.B_Character_start,
+			ToiletEventManager.State.B_utubuse_s,
+			ToiletEventManager.State.B_aomuke_s,
+			ToiletEventManager.State.B_hipup_s,
+			ToiletEventManager.State.B_hipup_s_2,
+			ToiletEventManager.State.B_hipup_ona_s,
+			ToiletEventManager.State.B_hipup_ona_2_s,
+			ToiletEventManager.State.B_piss_A_s,
+			ToiletEventManager.State.B_piss_B_s,
+			ToiletEventManager.State.B_piss_C_s,
+			ToiletEventManager.State.B_toy_s,
+			ToiletEventManager.State.B_toy_A_s,
+			ToiletEventManager.State.B_toy_B_s,
+			ToiletEventManager.State.B_toy_stay_s,
+			ToiletEventManager.State.B_toy_fi_s,
+			ToiletEventManager.State.B_hipip_ona_fi_s,
+			ToiletEventManager.State.B_hipip_ona_finish_s,
+
+			// Bed character actions
+			ToiletEventManager.State.BC_mass_idle_s,
+			ToiletEventManager.State.BC_mass_idle_end_s,
+			ToiletEventManager.State.BC_mass_1finger_s,
+			ToiletEventManager.State.BC_mass_1finger_end_s,
+			ToiletEventManager.State.BC_mass_1finger2_s,
+			ToiletEventManager.State.BC_mass_piss_s,
+			ToiletEventManager.State.BC_toy_sex1_s,
+			ToiletEventManager.State.BC_toy_sex1_1_s,
+			ToiletEventManager.State.BC_toy_sex1_1_piss_s,
+			ToiletEventManager.State.BC_toy_sex2_s,
+			ToiletEventManager.State.BC_toy_sex2_1_s,
+			ToiletEventManager.State.BC_toy_sex2_1_piss_s,
+			ToiletEventManager.State.BC_toy_sex_end_s,
+
+			// Character/clothing actions
+			ToiletEventManager.State.Character_Switch,
+			ToiletEventManager.State.Character_ChangeCloth,
+			ToiletEventManager.State.menu_0,
+			ToiletEventManager.State.menu_1,
+
+			// Action end states
+			ToiletEventManager.State.W_end_s,
+			ToiletEventManager.State.Y_end_s,
+			ToiletEventManager.State.B_toy_end_s,
+			ToiletEventManager.State.BC_end_s,
+			ToiletEventManager.State.Toilet_End,
+		};
 
 		// Determine which states are critical for synchronization across the network.
-		// Entry/exit points, toilet type selection, major action starts, and pose/animation changes should be broadcast.
-		static bool IsKeyToiletState(ToiletEventManager.State curState, ToiletEventManager.State prevState)
+		static bool IsKeyToiletState(ToiletEventManager.State curState)
 		{
-			// Entry and initialization states: must broadcast entire initialization sequence
-			// so remote players' state machine progresses through all setup steps
-			if (curState == ToiletEventManager.State.INI_RemoveWepon_s ||
-				curState == ToiletEventManager.State.INI_RemoveWepon ||
-				curState == ToiletEventManager.State.INI_NoArms ||
-				curState == ToiletEventManager.State.INI_Replace)
-				return true;
-
-
-			// Exit point: always broadcast when exiting toilet
-			if (curState == ToiletEventManager.State.Toilet_End)
-				return true;
-
-			// Appearance-changing states: these affect what remote players see
-			if (curState == ToiletEventManager.State.outPantu_start ||
-				curState == ToiletEventManager.State.outPantu ||
-				curState == ToiletEventManager.State.setPantu_start ||
-				curState == ToiletEventManager.State.setPantu)
-				return true;
-
-			// Character-related states: Character_Switch and Character_ChangeCloth affect appearance
-			if (curState == ToiletEventManager.State.Character_Switch ||
-				curState == ToiletEventManager.State.Character_ChangeCloth)
-				return true;
-
-			string stateName = curState.ToString();
-
-			// Major action starts: broadcast the "_s" states that trigger major animations/effects
-			if (stateName.EndsWith("_s"))
+			foreach (var state in KeyToiletStates)
 			{
-				// Broadcast action start states that have visible/gameplay effects
-				// (piss, scat, ona, penetration, toy use, etc.)
-				// Skip purely transitional animation states like normal_to_Mpose_s
-				if (stateName.Contains("piss") || stateName.Contains("scat") ||
-					stateName.Contains("ona") || stateName.Contains("toy") ||
-					stateName.Contains("hipup") || stateName.Contains("aomuke") ||
-					stateName.Contains("utubuse") || stateName.Contains("mass") ||
-					stateName.Contains("Character") || stateName.Contains("Denial"))
+				if (curState == state)
 					return true;
 			}
-
-			// Main action states (non-_s versions that contain action keywords): these are the actual
-			// animations that follow action starts. Remote players need to see what animation is playing.
-			if (!stateName.EndsWith("_s") && !stateName.Contains("_ini"))
-			{
-				if (stateName.Contains("piss") || stateName.Contains("scat") ||
-					stateName.Contains("ona") || stateName.Contains("toy") ||
-					stateName.Contains("hipup") || stateName.Contains("aomuke") ||
-					stateName.Contains("utubuse") || stateName.Contains("mass") ||
-					stateName.Contains("denial") || stateName.Contains("Closet") ||
-					stateName == "W_shitDown" || stateName == "Y_shitDown" ||
-					stateName == "D_piss_A_ini" || stateName == "D_scat_ini" ||
-					stateName == "B_Character_start")
-					return true;
-			}
-
-			// Pose transition states: these change character appearance and need to be synchronized
-			if (stateName.Contains("reset_to_") || stateName.Contains("_to_Mpose") ||
-				stateName.Contains("_to_mpose") || stateName.Contains("_to_normal") ||
-				stateName.Contains("_to_standup"))
-				return true;
-
-			// Action finalization states: remote players need to know when an action ends
-			if (stateName.Contains("_end") || stateName.Contains("_end_s") ||
-				stateName.Contains("_fi") || stateName.Contains("_fi_s"))
-				return true;
-
-			// Movement states: BackStep and ForwardStep affect player position
-			if (curState == ToiletEventManager.State.BackStep_start ||
-				curState == ToiletEventManager.State.BackStep ||
-				curState == ToiletEventManager.State.ForwardStep_start ||
-				curState == ToiletEventManager.State.ForwardStep)
-				return true;
-
-			// Everything else is not a key state
 			return false;
 		}
 
@@ -500,7 +521,7 @@ namespace EliminatorKaedeMP
 		}
 
 		// ToiletEventManager - To_toiletType ----------------------------------------------------------------
-		// Deactivate behavior panel for remote players (state transitions still happen)
+		// Deactivate behavior panel for remote players
 
 		[PatchAttr(typeof(ToiletEventManager), "To_toiletType", EPatchType.Postfix)]
 		static void ToiletEventManager_To_toiletType_Postfix(ToiletEventManager __instance)
@@ -510,6 +531,32 @@ namespace EliminatorKaedeMP
 			{
 				__instance.BehaviorPanel.SetActive(false);
 			}
+		}
+
+		// ToiletEventManager - EnableToilet ----------------------------------------------------------------
+		// For remote players, only setup animator objects
+
+		[PatchAttr(typeof(ToiletEventManager), "EnableToilet", EPatchType.Prefix)]
+		static bool ToiletEventManager_EnableToilet_Prefix(ToiletEventManager __instance)
+		{
+			// For remote players, skip the full EnableToilet and just setup controls/animators
+			if (EKMPPlayer.IsNetPlayerCtx)
+			{
+				EKMPPlayer mpPlayer = GameNet.GetPlayer(__instance.PC);
+				mpPlayer.SetupToiletAnimators(__instance, __instance.Perf, true);
+				return false; // Skip original EnableToilet
+			}
+			return true; // Run original EnableToilet for local player
+		}
+
+		// ToiletEventManager - Show_IgnorUI ----------------------------------------------------------------
+		// Deactivate ignore UI for remote players
+
+		[PatchAttr(typeof(ToiletEventManager), "Show_IgnorUI", EPatchType.Prefix)]
+		static bool ToiletEventManager_Show_IgnorUI_Prefix(ToiletEventManager __instance)
+		{
+			// For remote players, skip the full Show_IgnorUI
+			return !EKMPPlayer.IsNetPlayerCtx;
 		}
 	}
 }
